@@ -1,3 +1,6 @@
 [submodule "3rdParty/RIOT"]
 	path = 3rdParty/RIOT
 	url = https://github.com/tfar/RIOT.git
+[submodule "3rdParty/relic"]
+	path = 3rdParty/relic
+	url = https://github.com/tfar/relic.git
