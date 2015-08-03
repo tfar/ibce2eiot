@@ -1,0 +1,3 @@
+[submodule "3rdParty/RIOT"]
+	path = 3rdParty/RIOT
+	url = https://github.com/tfar/RIOT.git
