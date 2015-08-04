@@ -11,3 +11,6 @@
 [submodule "3rdParty/easyloggingpp"]
 	path = 3rdParty/easyloggingpp
 	url = https://github.com/easylogging/easyloggingpp.git
+[submodule "3rdParty/NORX"]
+	path = 3rdParty/NORX
+	url = https://github.com/norx/NORX.git
