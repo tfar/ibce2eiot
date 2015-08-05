@@ -42,6 +42,7 @@ TA::~TA() {
 std::shared_ptr<TA> TA::init() {
 	std::shared_ptr<TA> ta = std::make_shared<TA>();
 	cp_vbnn_ibs_kgc_gen(ta->kgc_);
+	LOG(INFO) << "New TA initialized, with public key: " << ta->kgc_->mpk;
 	return ta;
 }
 
@@ -70,6 +71,8 @@ std::shared_ptr<TA> TA::load(const std::vector<uint8_t>& data) {
 
 	/* Deallocate the result */
 	cbor_decref(&item);
+
+	LOG(INFO) << "TA loaded, with public key: " << ta->kgc_->mpk;
 
 	return ta;
 }

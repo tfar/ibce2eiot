@@ -24,10 +24,26 @@ THE SOFTWARE.
 
 #include <easylogging++.h>
 
+INITIALIZE_EASYLOGGINGPP
+
 // library headers
 extern "C" {
 	#include <cbor.h>
 	#include <relic.h>
+}
+
+inline MAKE_LOGGABLE(fp_t, n, os) {
+	std::vector<char> str;
+	str.resize(100);
+	fp_write_str(str.data(), 100, n, 10);
+	std::string s(str.data());
+	os << s;
+	return os;
+}
+
+inline MAKE_LOGGABLE(ec_t, p, os) {
+	os << "ec_t(" << p->x << ", " << p->y << ", " << p->z << ")";
+	return os;
 }
 
 #include <cstdio>
@@ -37,12 +53,12 @@ extern "C" {
 
 // other headers
 #include "ibc.h"
+#include "network.h"
 
 // other sources
 #include "ibc.cpp"
+#include "network.cpp"
 #include "relic_cbor.c"
-
-INITIALIZE_EASYLOGGINGPP
 
 std::string byteVecToStr(const std::vector<uint8_t>& data) {
 	std::string str;
@@ -57,20 +73,23 @@ std::string byteVecToStr(const std::vector<uint8_t>& data) {
 using namespace std;
 
 static std::vector<uint8_t> vectorFromFile(char const* filename) {
-    ifstream ifs(filename, ios::binary|ios::ate);
-    ifstream::pos_type pos = ifs.tellg();
+	ifstream ifs(filename, ios::binary|ios::ate);
+	ifstream::pos_type pos = ifs.tellg();
 
-    std::vector<uint8_t>  result(pos);
+	std::vector<uint8_t>  result(pos);
 
-    ifs.seekg(0, ios::beg);
-    ifs.read(reinterpret_cast<char*>(result.data()), pos);
+	ifs.seekg(0, ios::beg);
+	ifs.read(reinterpret_cast<char*>(result.data()), pos);
 
-    return result;
+	return result;
 }
 
 
 int main(int argc, char* argv[]) {
 	START_EASYLOGGINGPP(argc, argv);
+	el::Loggers::reconfigureAllLoggers(el::ConfigurationType::Format, "%datetime %level %loc : %msg");
+
+
 	LOG(INFO) << "IBC-based End-to-End Authentication Gateway for the Internet of Things";
 
 	LOG(INFO) << "Initialize RELIC...";
