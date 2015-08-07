@@ -7,6 +7,7 @@
 #include "net/ng_netopt.h"
 #include "posix_io.h"
 #include "shell.h"
+#include "unistd.h"
 
 #include <relic.h>
 #include <norx.h>
@@ -19,8 +20,10 @@ extern int udp_cmd(int argc, char **argv);
 
 extern void send(char *addr_str, char *port_str, char *data);
 
-const uint8_t confRequestKey[16] = {0x82, 0x02, 0x1a, 0xb1, 0x47, 0xd8, 0xbb, 0x75, 0x91, 0x17, 0x4d, 0x9c, 0x81, 0x74, 0x3e, 0x3b, };
-const uint8_t confResponseKey[16] = {0xbe, 0x87, 0x7c, 0x23, 0xf0, 0x6c, 0x59, 0x69, 0x92, 0xda, 0xe9, 0xd1, 0xf2, 0xf9, 0x36, 0x7c, };
+const uint8_t confRequestKey[16] = {0x82, 0x02, 0x1a, 0xb1, 0x47, 0xd8, 0xbb, 0x75, 
+                                    0x91, 0x17, 0x4d, 0x9c, 0x81, 0x74, 0x3e, 0x3b};
+const uint8_t confResponseKey[16] ={0xbe, 0x87, 0x7c, 0x23, 0xf0, 0x6c, 0x59, 0x69,
+                                    0x92, 0xda, 0xe9, 0xd1, 0xf2, 0xf9, 0x36, 0x7c};
 
 static const shell_command_t shell_commands[] = {
     { "udp", "send data over UDP and listen on UDP ports", udp_cmd },
@@ -50,20 +53,20 @@ void request_network_and_identity_from_gateway(void) {
     size_t trailerLen = 0;
 
     norx_aead_encrypt(requestCiphertext, &requestCiphertextLen, header, headerLen, 
-        plaintext, plaintextLen, trailer, trailerLen, configNonce, confResponseKey);
+        plaintext, plaintextLen, trailer, trailerLen, configNonce, confRequestKey);
     //send("ff02::0e2e:0ecc", "20000", "Hello World!");
 
     cbor_clear(&stream);
 
     // compute request message
     cbor_serialize_array(&stream, 2);
-    cbor_serialize_byte_string(&stream, (char*)configNonce, 16);
-    cbor_serialize_byte_string(&stream, (char*)requestCiphertext, requestCiphertextLen);
+    cbor_serialize_byte_stringl(&stream, (char*)configNonce, 16);
+    cbor_serialize_byte_stringl(&stream, (char*)requestCiphertext, requestCiphertextLen);
 
     ng_ipv6_addr_t toAddress;
     ng_ipv6_addr_from_str(&toAddress, "ff02::0e2e:0ecc");
 
-    send_udp_packet(toAddress, 4232, stream.data, stream.pos);
+    send_udp_packet(toAddress, 4223, stream.data, stream.pos);
 
     free(requestCiphertext);
     requestCiphertext = 0;
@@ -95,6 +98,7 @@ int main(void)
 
     // initiate dynamic initialization
     puts("Initiate dynamic device initialization.");
+    start_server("4223");
     request_network_and_identity_from_gateway();
 
     shell_run(&shell);
