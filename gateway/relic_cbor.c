@@ -70,6 +70,27 @@ cbor_item_t* relic_ec2cbor(const ec_t n) {
 	return ret;
 }
 
+cbor_item_t* relic_ec2cbor_compressed(const ec_t n) {
+	ec_t tmp;
+	uint8_t* buffer = NULL;
+	cbor_item_t* ret = NULL;
+	
+	ec_null(tmp);
+	ec_new(tmp);
+	ec_norm(tmp, n);
+
+
+	size_t bufferLen = ec_size_bin(tmp, 1);
+	buffer = (uint8_t*)malloc(bufferLen);
+
+	ec_write_bin(buffer, bufferLen, tmp, 1);
+	ret = cbor_build_bytestring(buffer, bufferLen);
+
+	ec_free(tmp);
+	free(buffer);
+	return ret;
+}
+
 void relic_cbor2bn(bn_t n, const cbor_item_t* item) {
 	assert(cbor_isa_bytestring(item));
 	int size = cbor_bytestring_length(item);
@@ -95,5 +116,12 @@ void relic_cbor2ec(ec_t n, const cbor_item_t* item) {
 			relic_cbor2fp(n->y, pair->value);
 		}
 	}
+}
+
+void relic_cbor2ec_compressed(ec_t n, const cbor_item_t* item) {
+	assert(cbor_isa_bytestring(item));
+	size_t size = cbor_bytestring_length(item);
+	ec_read_bin(n, cbor_bytestring_handle(item), size);
+	fp_set_dig(n->z, 1);
 }
 

@@ -31,6 +31,7 @@ USEMODULE += uart0
 USEMODULE += shell
 USEMODULE += shell_commands
 USEMODULE += ps
+USEMODULE += fib
 
 # CBOR
 USEMODULE += cbor

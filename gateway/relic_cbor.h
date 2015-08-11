@@ -24,11 +24,11 @@ THE SOFTWARE.
 
 #pragma once
 
+#include <cbor.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 	#include <relic.h>
-	#include <cbor.h>
 #ifdef __cplusplus
 }
 #endif
@@ -39,6 +39,7 @@ extern "C" {
 cbor_item_t* relic_bn2cbor(const bn_t n);
 cbor_item_t* relic_fp2cbor(const fp_t n);
 cbor_item_t* relic_ec2cbor(const ec_t n);
+cbor_item_t* relic_ec2cbor_compressed(const ec_t n);
 
 /*
  *  Parse RELIC data structures from CBOR items.
@@ -46,3 +47,4 @@ cbor_item_t* relic_ec2cbor(const ec_t n);
 void relic_cbor2bn(bn_t n, const cbor_item_t* item);
 void relic_cbor2fp(fp_t n, const cbor_item_t* item);
 void relic_cbor2ec(ec_t n, const cbor_item_t* item);
+void relic_cbor2ec_compressed(ec_t, const cbor_item_t* item);

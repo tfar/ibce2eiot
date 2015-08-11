@@ -32,6 +32,37 @@ extern "C" {
 #include <memory>
 #include <vector>
 
+class IBC_User {
+public:
+	IBC_User() {
+		vbnn_ibs_user_null(user);
+		vbnn_ibs_user_new(user);
+	}
+
+	IBC_User( const IBC_User& other ) {
+		vbnn_ibs_user_null(user);
+		vbnn_ibs_user_new(user);
+
+		ec_copy(user->R, other.user->R);
+		bn_copy(user->s, other.user->s);
+	}
+
+ 	IBC_User( IBC_User& other ) {
+ 		vbnn_ibs_user_null(user);
+		vbnn_ibs_user_new(user);
+
+		ec_copy(user->R, other.user->R);
+		bn_copy(user->s, other.user->s);
+ 	}
+ 	
+ 	~IBC_User() {
+ 		vbnn_ibs_user_free(user);
+ 	}
+
+public:
+	vbnn_ibs_user_t user;
+};
+
 class TA {
 public:
 	static std::shared_ptr<TA> init();
@@ -42,7 +73,9 @@ public:
 	~TA();
 
 	std::vector<uint8_t> save();
+	std::vector<uint8_t> getPublicKey();
+	IBC_User extractIdentityKey(const std::vector<uint8_t>& id);
 
-private:
+public:
 	vbnn_ibs_kgc_t kgc_;
 };

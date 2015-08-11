@@ -24,31 +24,34 @@ THE SOFTWARE.
 
 #pragma once
 
+#include <string>
 #include <memory>
-#include <array>
 
-#include <boost/asio.hpp>
+/*
+ULA
+fd2d:0388:6a7b:018e:e631:728b:eb82:8005/112 (Example)
+fd2d:0388:6a7b:HHHH:HHHH:HHHH:HHHH:NNNN/112
+-+-----------+-------------------+----+
+ |           |                   |    |
+ |           |                   |    +----- Node ID         (8 bit)
+ |           |                   +---------- Hash            (64 bit)
+ |           +------------------------------ Global prefix   (40 bit)
+ *------------------------------------------ ULA prefix      (16 bit)
+*/
 
-#include "network_interface.h"
-#include "ibc.h"
 
-class DynamicConfigurationServer {
+class NetworkInterface {
 public:
-	DynamicConfigurationServer(boost::asio::io_service& ioservice, std::shared_ptr<NetworkInterface> netInf, std::shared_ptr<TA> ta);
+	NetworkInterface(const boost::asio::ip::address_v6& prefix);
+	~NetworkInterface();
+
+	void configureInterface(const std::string& interface, std::shared_ptr<TA> ta);
+
+	boost::asio::ip::address_v6 getUsedAddress() const;
+	std::string getInterfaceName() const;
 
 private:
-	void startReceive();
-
-	void handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred);
-	void handleSend(const boost::system::error_code& /*error*/,
-      std::size_t /*bytes_transferred*/);
-
-	void generateCredentialsAndSendResponse(const std::array<uint8_t, 16>& nonce);
-
-private:
-	std::shared_ptr<boost::asio::ip::udp::socket> socket_;
-	boost::asio::ip::udp::endpoint remote_endpoint_;
-	std::array<char, 100> recv_buffer_;
-	std::shared_ptr<NetworkInterface> networkInterface_;
-	std::shared_ptr<TA> ta_;
+	std::string interface_;
+	boost::asio::ip::address_v6 prefix_;
+	boost::asio::ip::address_v6 usedAddress_;
 };

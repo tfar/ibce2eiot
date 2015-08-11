@@ -24,31 +24,9 @@ THE SOFTWARE.
 
 #pragma once
 
-#include <memory>
+#include <vector>
 #include <array>
 
-#include <boost/asio.hpp>
-
-#include "network_interface.h"
-#include "ibc.h"
-
-class DynamicConfigurationServer {
-public:
-	DynamicConfigurationServer(boost::asio::io_service& ioservice, std::shared_ptr<NetworkInterface> netInf, std::shared_ptr<TA> ta);
-
-private:
-	void startReceive();
-
-	void handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred);
-	void handleSend(const boost::system::error_code& /*error*/,
-      std::size_t /*bytes_transferred*/);
-
-	void generateCredentialsAndSendResponse(const std::array<uint8_t, 16>& nonce);
-
-private:
-	std::shared_ptr<boost::asio::ip::udp::socket> socket_;
-	boost::asio::ip::udp::endpoint remote_endpoint_;
-	std::array<char, 100> recv_buffer_;
-	std::shared_ptr<NetworkInterface> networkInterface_;
-	std::shared_ptr<TA> ta_;
-};
+namespace relic {
+	
+}

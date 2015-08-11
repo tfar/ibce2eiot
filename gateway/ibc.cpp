@@ -57,7 +57,7 @@ std::shared_ptr<TA> TA::load(const std::vector<uint8_t>& data) {
 	size_t pairs = cbor_map_size(item);
 	for (cbor_pair* pair = cbor_map_handle(item); pairs > 0; pair++, pairs--) {
 		if (strncmp(reinterpret_cast<char*>(cbor_string_handle(pair->key)), "mpk", 3) == 0) {
-			relic_cbor2ec(ta->kgc_->mpk, pair->value);
+			relic_cbor2ec_compressed(ta->kgc_->mpk, pair->value);
 		}
 		else if (strncmp(reinterpret_cast<char*>(cbor_string_handle(pair->key)), "msk", 3) == 0) {
 			relic_cbor2bn(ta->kgc_->msk, pair->value);
@@ -83,7 +83,7 @@ std::vector<uint8_t> TA::save() {
 	cbor_item_t* root = cbor_new_definite_map(2);
 	cbor_map_add(root, (struct cbor_pair) {
 		.key = cbor_move(cbor_build_string("mpk")),
-		.value = cbor_move(relic_ec2cbor(kgc_->mpk))
+		.value = cbor_move(relic_ec2cbor_compressed(kgc_->mpk))
 	});
 	cbor_map_add(root, (struct cbor_pair) {
 		.key = cbor_move(cbor_build_string("msk")),
@@ -100,4 +100,26 @@ std::vector<uint8_t> TA::save() {
 	cbor_decref(&root);
 
 	return res_buffer;
+}
+
+std::vector<uint8_t> TA::getPublicKey() {
+	std::vector<uint8_t> result;
+
+	cbor_item_t* root = cbor_move(relic_ec2cbor(kgc_->mpk));
+	unsigned char* buffer = NULL;
+	size_t buffer_size, length = cbor_serialize_alloc(root, &buffer, &buffer_size);
+	result.resize(length);
+	memcpy(result.data(), buffer, length);
+	free(buffer);
+	cbor_decref(&root);
+
+	return result;
+}
+
+IBC_User TA::extractIdentityKey(const std::vector<uint8_t>& id) {
+	IBC_User result;
+
+	cp_vbnn_ibs_kgc_extract_key(result.user, kgc_, (unsigned char*)id.data(), id.size());
+
+	return result;
 }
