@@ -67,11 +67,13 @@ std::string byteVecToStr(const std::vector<uint8_t>& data) {
 #include "ibc.h"
 #include "network.h"
 #include "network_interface.h"
+#include "ta_lookup_responder.h"
 
 // other sources
 #include "ibc.cpp"
 #include "network.cpp"
 #include "network_interface.cpp"
+#include "ta_lookup_responder.cpp"
 #include "relic_cbor.c"
 
 extern "C" {
@@ -175,11 +177,17 @@ int main(int argc, char* argv[]) {
 	try {
 		std::shared_ptr<NetworkInterface> ni = std::make_shared<NetworkInterface>(boost::asio::ip::address::from_string("fd2d:0388:6a7b::").to_v6());
 		ni->configureInterface(interface, ta);
+		
+		// start dynamic configuration server (part of this authentication support server)
 		std::shared_ptr<DynamicConfigurationServer> dcs = std::make_shared<DynamicConfigurationServer>(io_service, ni, ta);
+		
+		// start TA lookup responder (part of this authentication support server)
+		std::shared_ptr<TALookupResponder> talr = std::make_shared<TALookupResponder>(io_service, ni, ta);
 		io_service.run();
 	}
 	catch (std::exception& e) {
 		LOG(INFO) << e.what();
+		el::base::debug::StackTrace();
 	}
 
 

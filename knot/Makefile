@@ -22,16 +22,21 @@ USEMODULE += auto_init_ng_netif
 # Specify the mandatory networking modules for IPv6 and UDP
 USEMODULE += ng_ipv6_default
 USEMODULE += ng_udp
-# This application dumps received packets to STDIO using the pktdump module
-USEMODULE += ng_pktdump
+
 # Additional networking modules that can be dropped if not needed
 USEMODULE += ng_icmpv6_echo
-# Add also the shell, some shell commands (which are based on uart0 in this app)
-USEMODULE += uart0
-USEMODULE += shell
-USEMODULE += shell_commands
+
 USEMODULE += ps
 USEMODULE += fib
+
+
+##########
+# Add also the shell, some shell commands (which are based on uart0 in this app)
+USEMODULE += uart0
+# This application dumps received packets to STDIO using the pktdump module
+USEMODULE += ng_pktdump
+USEMODULE += shell
+USEMODULE += shell_commands
 
 # CBOR
 USEMODULE += cbor
@@ -39,8 +44,8 @@ USEMODULE += cbor
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
-CFLAGS += -DDEVELHELP  -I$(CURDIR)/../3rdParty/NORX/norx3261/ref -I$(CURDIR)/../3rdParty/relic/include -I$(CURDIR)/build/relic/include
-CFLAGS += -DTHREAD_STACKSIZE_MAIN=4000
+CFLAGS += -DDEVELHELP -I$(CURDIR)/../3rdParty/NORX/norx3261/ref -I$(CURDIR)/../3rdParty/relic/include -I$(CURDIR)/build/relic/include
+#CFLAGS += -DTHREAD_STACKSIZE_MAIN=4000
 
 LINKFLAGS += -L$(CURDIR)/build/relic/lib -lrelic_s
 
