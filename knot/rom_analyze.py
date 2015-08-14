@@ -43,6 +43,8 @@ while True:
 		addSizeForModule("RELIC/UTIL", symbol_size)
 	elif re.match('^dv_.+$', symbol_name):
 		addSizeForModule("RELIC/DV", symbol_size)
+	elif re_match_any(["^first_ctx$", "^core_init$"], symbol_name):
+		addSizeForModule("RELIC/OTHER", symbol_size)
 	# NORX
 	elif re.match('^norx_.+$', symbol_name):
 		addSizeForModule("NORX", symbol_size)
@@ -70,11 +72,11 @@ while True:
 	elif re_match_any(['^_strtol_r', '^__sflush_r', '^_strtoul_r', '^_puts_r', '^__ssputs_r', '^_free_r'
 			'^viprintf', '^vprintf', '^__sseek', '^__sfputc_r', '^fflush', '^__sread', '^__sfputs_r'
 			'^fprintf', '^fiprintf', '^malloc', '^_close_r', '^__swrite', '^__libc_init_array', 
-			'^_free_r', '^_fstat_r'], symbol_name):
+			'^_free_r', '^_fstat_r', '^sprintf$', '^printf$', '^memcpy$', '^memmove$', '^memset$'], symbol_name):
 		addSizeForModule("STDLIB", symbol_size)
 	# RIOT
 	# RIOT Radio
-	elif re.match('^at86rf2xx_.*$', symbol_name):
+	elif re_match_any(['^at86rf2xx_.*$', '^_nomac_stacks$', '^auto_init_at86rf2xx$'], symbol_name):
 		addSizeForModule("RIOT/RADIO", symbol_size)
 	# RIOT CBOR
 	elif re.match('^cbor_.*$', symbol_name):
@@ -101,7 +103,9 @@ while True:
 		addSizeForModule("RIOT/UDP", symbol_size)
 	elif re.match("^universal_address_.*", symbol_name):
 		addSizeForModule("RIOT/NETWORK", symbol_size)
-	elif re.match("^ng_netif_.*$", symbol_name):
+	elif re_match_any(["^ng_netif_.*$", "^_netif_.*$", "^_print_netopt.*$", "^_is_iface$", "^_set_usage$"], symbol_name):
+		addSizeForModule("RIOT/NETWORK", symbol_size)
+	elif re_match_any(["^ng_netreg_.*$", "^netreg$"], symbol_name):
 		addSizeForModule("RIOT/NETWORK", symbol_size)
 	elif re.match("^ng_pktbuf_.*$", symbol_name):
 		addSizeForModule("RIOT/PKTBUF", symbol_size)
@@ -109,11 +113,36 @@ while True:
 		addSizeForModule("RIOT/PKTBUF", symbol_size)
 	elif re.match("^ng_netapi_.*", symbol_name):
 		addSizeForModule("RIOT/NETAPI", symbol_size)
-	elif re.match("^ng_icmpv6_.*", symbol_name):
+	elif re_match_any(["^ng_icmpv6_.*", "_icmpv6_ping", "_handle_reply", "_set_payload", "usage.isra.0", "_a_to_timex", "ipv6_str", "^.*_seq_expected$"], symbol_name):
 		addSizeForModule("RIOT/ICMPV6", symbol_size)
+	elif re_match_any(["^ng_ipv6_nc_.*$", "^ncache$", "^_find_free_entry$", "^ipv6_addr_is_unspecified$"], symbol_name):
+		addSizeForModule("RIOT/NCACHE", symbol_size)
+	# RIOT Shell
+	elif re_match_any(["^shell_init$", "^print_prompt.isra.1$", "^shell_run$", "^_shell_command_list$", "^_reboot_handler$",
+						"^_ps_handler$", "^_mersenne_get$", "^_mersenne_init$", "^_set_usage$", "^_is_iface$", "^_print_netopt_state$",
+						"^_print_netopt$", "^_netif_set_flag$", "^_netif_set_addr$", "^_netif_set_u16$", "^_netif_send$", 
+						"^_netif_list$", "^_netif_config$", "^tmp_ipv4_dst$", "^tmp_ipv4_nxt$", "^tmp_ipv6_dst$",
+						"^tmp_ipv6_nxt$", "^_fib_add$", "^_fib_route_handler$", "^_is_iface$", "^_print_nc_type.isra.1$",
+						"^_print_nc_state.isra.0$", "^_ipv6_nc_add$", "^_ipv6_nc_routers$", "^_ipv6_nc_manage$", "^id$",
+						"^max_seq_expected$", "^min_seq_expected$", "^ipv6_str$", "^_a_to_timex$", "^usage.isra.0$",
+						"^_set_payload$", "^_handle_reply$", "^_icmpv6_ping$", "^zep$", "^_zep_init$",
+						"^zep_stack$", "^_rtc_handler$"], symbol_name):
+		addSizeForModule("RIOT/SHELL", symbol_size)
+	# RIOT Scheduler
+	elif re_match_any(["^sched_.*$", "^thread_.*$"], symbol_name):
+		addSizeForModule("RIOT/THREAD", symbol_size)
 	# RIOT UART
 	elif re.match("^uart0?_.*$", symbol_name):
 		addSizeForModule("RIOT/UART", symbol_size)
+	# RIOT STACK
+	elif re_match_any(["^_stack$", "^idle_stack$"], symbol_name):
+		addSizeForModule("RIOT/STACK", symbol_size)
+	# RIOT RANDOM
+	elif re_match_any(["^mti$", "^mt$", "^genrand_.*$", "^_mersenne_.*$"], symbol_name):
+		addSizeForModule("RIOT/RANDOM", symbol_size)
+	# RIOT OTHER
+	elif re_match_any(["^rbuf.*$", "_rbuf_rem"], symbol_name): 
+		addSizeForModule("RIOT/OTHER", symbol_size)
 	# Knot (Application)
 	elif re.match("^knot_.*$", symbol_name):
 		addSizeForModule("APP", symbol_size)

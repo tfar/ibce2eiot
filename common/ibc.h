@@ -28,6 +28,7 @@ extern "C" {
 	#include <relic.h>
 }
 
+#include "relic_cbor.h"
 
 #include <memory>
 #include <vector>
@@ -47,17 +48,17 @@ public:
 		bn_copy(user->s, other.user->s);
 	}
 
- 	IBC_User( IBC_User& other ) {
- 		vbnn_ibs_user_null(user);
+	IBC_User( IBC_User& other ) {
+		vbnn_ibs_user_null(user);
 		vbnn_ibs_user_new(user);
 
 		ec_copy(user->R, other.user->R);
 		bn_copy(user->s, other.user->s);
- 	}
- 	
- 	~IBC_User() {
- 		vbnn_ibs_user_free(user);
- 	}
+	}
+	
+	~IBC_User() {
+		vbnn_ibs_user_free(user);
+	}
 
 public:
 	vbnn_ibs_user_t user;
@@ -78,4 +79,85 @@ public:
 
 public:
 	vbnn_ibs_kgc_t kgc_;
+};
+
+class Signature {
+public:
+	Signature() {
+		ec_null(R);
+		bn_null(z);
+		bn_null(h);
+		ec_new(R);
+		bn_new(z);
+		bn_new(h);
+	}
+
+	Signature( const Signature& other ) {
+		ec_null(R);
+		bn_null(z);
+		bn_null(h);
+		ec_new(R);
+		bn_new(z);
+		bn_new(h);
+
+		ec_copy(R, other.R);
+		bn_copy(z, other.z);
+		bn_copy(h, other.h);
+	}
+
+	Signature( Signature& other ) {
+		ec_null(R);
+		bn_null(z);
+		bn_null(h);
+		ec_new(R);
+		bn_new(z);
+		bn_new(h);
+
+		ec_copy(R, other.R);
+		bn_copy(z, other.z);
+		bn_copy(h, other.h);
+	}
+	
+	~Signature() {
+		ec_free(R);
+		bn_free(z);
+		bn_free(h);
+	}
+
+	cbor_item_t* toCBORArray() {
+		cbor_item_t* array = cbor_new_definite_array(3);
+		cbor_array_push(array, cbor_move(relic_ec2cbor_compressed(R)));
+		cbor_array_push(array, cbor_move(relic_bn2cbor(z)));
+		cbor_array_push(array, cbor_move(relic_bn2cbor(h)));
+		return array;
+	}
+
+public:
+	static Signature sign(std::shared_ptr<IBC_User> user, std::vector<uint8_t> &id, std::vector<uint8_t> &data) {
+		Signature sig;
+		cp_vbnn_ibs_user_sign(
+			sig.R, 
+			sig.z, 
+			sig.h, 
+			id.data(), 
+			id.size(), 
+			data.data(), 
+			data.size(), 
+			user->user);
+		return sig;
+	}
+
+	static bool verify(std::vector<uint8_t> &id, std::vector<uint8_t> &data, ec_t mpk, Signature &sig) {
+		if (cp_vbnn_ibs_user_verify(sig.R, sig.z, sig.h, id.data(), id.size(), data.data(), data.size(), mpk) == 1) {
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+
+public:
+	ec_t R;
+	bn_t z;
+	bn_t h;
 };

@@ -157,8 +157,10 @@ void DynamicConfigurationServer::generateCredentialsAndSendResponse(const std::a
 		.value = cbor_move(idKey_cbor)
 	});
 
+#if defined(IOT_DEBUG)
 	cbor_describe(root, stdout);
 	fflush(stdout);
+#endif
 
 	unsigned char* buffer;
 	size_t buffer_size, length = cbor_serialize_alloc(root, &buffer, &buffer_size);

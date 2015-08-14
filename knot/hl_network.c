@@ -24,7 +24,6 @@ extern void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t
 static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* dst_addr, uint16_t *dst_port, uint8_t **buffer, size_t *buffer_size) {
     int snips = 0;
     int size = 0;
-
     int headers = 0;
     while (snip != NULL) {
         if (snip->type == NG_NETTYPE_UNDEF) {

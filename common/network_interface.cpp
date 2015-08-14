@@ -30,6 +30,16 @@ extern "C" {
 	#include "relic.h"
 }
 
+#if defined(__linux__)
+	#define NETWORK_CONFIG_ADD_IPADDRESS     "ip address add %s/112 dev %s"
+	#define NETWORK_CONFIG_REMOVE_IPADDRESS  "ip address delete %s/112 dev %s"
+#elif defined(__APPLE__)
+	#define NETWORK_CONFIG_ADD_IPADDRESS     "echo %s %s"
+	#define NETWORK_CONFIG_REMOVE_IPADDRESS  "echo %s %s"
+#else
+	#error Unupported operating system.
+#endif
+
 NetworkInterface::NetworkInterface(const boost::asio::ip::address_v6& prefix) : prefix_(prefix) {
 
 }
@@ -38,7 +48,7 @@ NetworkInterface::~NetworkInterface() {
 	// remove the IPv6 address from the interface
 	LOG(INFO) << "Remove ip address " << usedAddress_.to_string() << " from interface " << interface_;
 	char buffer[100];
-	snprintf(buffer, 100, "ip address delete %s/112 dev %s", usedAddress_.to_string().c_str(), interface_.c_str());
+	snprintf(buffer, 100, NETWORK_CONFIG_REMOVE_IPADDRESS, usedAddress_.to_string().c_str(), interface_.c_str());
 	std::string ipAddressDeleteCmd(buffer);
 	LOG(INFO) << "Run command: " << ipAddressDeleteCmd;
 	system(ipAddressDeleteCmd.c_str());
@@ -70,7 +80,7 @@ void NetworkInterface::configureInterface(const std::string& interface, std::sha
 
 	usedAddress_ = boost::asio::ip::address_v6(addressBytes);
 	char buffer[100];
-	snprintf(buffer, 100, "ip address add %s/112 dev %s", usedAddress_.to_string().c_str(), interface.c_str());
+	snprintf(buffer, 100, NETWORK_CONFIG_ADD_IPADDRESS, usedAddress_.to_string().c_str(), interface.c_str());
 	std::string ipAddressAddCmd(buffer);
 	LOG(INFO) << "Run command: " << ipAddressAddCmd;
 	system(ipAddressAddCmd.c_str());
