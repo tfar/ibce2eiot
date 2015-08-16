@@ -24,6 +24,9 @@ THE SOFTWARE.
 
 #include "ta_lookup_responder.h"
 
+#if !defined(__linux__)
+#include "linenoise.h"
+#endif
 
 TALookupResponder::TALookupResponder(boost::asio::io_service& ioservice, std::shared_ptr<NetworkInterface> networkInterface, std::shared_ptr<TA> ta) : networkInterface_(networkInterface), ta_(ta) {
 	sleep(5);
@@ -61,26 +64,27 @@ void TALookupResponder::startReceive() {
 }
 
 void TALookupResponder::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
-	LOG(INFO) << "Request received from " << remote_endpoint_;
+#if !defined(__linux__)
+	disableRawMode(STDIN_FILENO);
+#endif
+	if (!error) {
+		LOG(INFO) << "Request received from " << remote_endpoint_;
+		std::vector<uint8_t> replyData = ta_->getPublicKey();
 	
-	// the TA public key as a simple CBOR bytestring
-	LOG(INFO) << "encode response in CBOR";
-	cbor_item_t* root = cbor_move(relic_ec2cbor_compressed(ta_->kgc_->mpk));
+		LOG(INFO) << "send TA parameters back";
+		socket_->async_send_to(boost::asio::buffer(replyData), remote_endpoint_,
+    	      boost::bind(&TALookupResponder::handleSend, this,
+    	        boost::asio::placeholders::error,
+    	        boost::asio::placeholders::bytes_transferred));
 
-	unsigned char* buffer;
-	size_t buffer_size, length = cbor_serialize_alloc(root, &buffer, &buffer_size);
-
-	std::vector<uint8_t> replyData(length);
-	memcpy(replyData.data(), buffer, length);
-	free(buffer);
-	
-	LOG(INFO) << "send TA parameters back";
-	socket_->async_send_to(boost::asio::buffer(replyData), remote_endpoint_,
-          boost::bind(&TALookupResponder::handleSend, this,
-            boost::asio::placeholders::error,
-            boost::asio::placeholders::bytes_transferred));
-
-	startReceive();
+		startReceive();
+	}
+	else {
+		LOG(INFO) << "Error: " << error << " : " << error.message();
+	}
+#if !defined(__linux__)
+	enableRawMode(STDIN_FILENO);
+#endif
 }
 
 void TALookupResponder::handleSend(const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/) {

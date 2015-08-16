@@ -63,7 +63,7 @@ void NetworkInterface::configureInterface(const std::string& interface, std::sha
 	std::array<uint8_t, 8> prefixPlusTAHash;
 
 	std::vector<uint8_t> prefixPlusTA;
-	prefixPlusTA.resize(7);
+	prefixPlusTA.resize(6);
 	memcpy(prefixPlusTA.data(), addressBytes.data(), 6);
 
 	std::vector<uint8_t> pubKeyTA = ta->getPublicKey();

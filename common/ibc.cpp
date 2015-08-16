@@ -105,7 +105,7 @@ std::vector<uint8_t> TA::save() {
 std::vector<uint8_t> TA::getPublicKey() {
 	std::vector<uint8_t> result;
 
-	cbor_item_t* root = cbor_move(relic_ec2cbor(kgc_->mpk));
+	cbor_item_t* root = cbor_move(relic_ec2cbor_compressed(kgc_->mpk));
 	unsigned char* buffer = NULL;
 	size_t buffer_size, length = cbor_serialize_alloc(root, &buffer, &buffer_size);
 	result.resize(length);

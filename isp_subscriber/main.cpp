@@ -212,7 +212,7 @@ int main(int argc, char* argv[]) {
 
 		// prompt loop
 		char *line = NULL;
-		while((line = linenoise("isp> ")) != NULL) {
+		while((line = linenoise("> ")) != NULL) {
 			std::string lineStr(line);
 
 			bool unknownCommand = false;
@@ -222,7 +222,7 @@ int main(int argc, char* argv[]) {
 				break;
 			}
 			else if (lineStr == "query") {
-				iotService->sendQuery("fd2d:388:6a7b:8698:3a5:e0b7:a0a0:5", "rnd");
+				iotService->sendQuery("fd2d:388:6a7b:d4e8:9739:f1ac:aed5:5", "rnd");
 			}
 			else {
 				printf("Unknown command.\n");

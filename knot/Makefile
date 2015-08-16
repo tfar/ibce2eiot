@@ -27,7 +27,7 @@ USEMODULE += ng_udp
 USEMODULE += ng_icmpv6_echo
 
 USEMODULE += ps
-USEMODULE += fib
+#USEMODULE += fib
 
 
 ##########
@@ -35,8 +35,8 @@ USEMODULE += fib
 USEMODULE += uart0
 # This application dumps received packets to STDIO using the pktdump module
 USEMODULE += ng_pktdump
-USEMODULE += shell
-USEMODULE += shell_commands
+#USEMODULE += shell
+#USEMODULE += shell_commands
 
 # CBOR
 USEMODULE += cbor

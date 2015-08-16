@@ -6,8 +6,8 @@
 #include "net/ng_netif.h"
 #include "net/netopt.h"
 #include "posix_io.h"
-#include "shell.h"
 #include "unistd.h"
+#include "ps.h"
 
 #include <relic.h>
 #include <norx.h>
@@ -25,14 +25,23 @@ const uint8_t knot_confRequestKey[16] = {0x82, 0x02, 0x1a, 0xb1, 0x47, 0xd8, 0xb
 const uint8_t knot_confResponseKey[16] ={0xbe, 0x87, 0x7c, 0x23, 0xf0, 0x6c, 0x59, 0x69,
                                     0x92, 0xda, 0xe9, 0xd1, 0xf2, 0xf9, 0x36, 0x7c};
 
-static const shell_command_t shell_commands[] = {
-    { NULL, NULL, NULL }
-};
-
 uint8_t knot_configNonce[16];
 
 static ec_t knot_localTA;
 static vbnn_ibs_user_t knot_ownUser;
+
+static ec_t knot_remoteTA_key[1];
+static uint8_t knot_remoteTA_prefix[1][6] = {{0x0, 0x0, 0x0, 0x0, 0x0, 0x0}};
+
+void* knot_unauthenticatedLastMessage = 0;
+size_t knot_unauthenticatedLastMessageLen = 0;
+ipv6_addr_t knot_unauthenticatedLastMessageAddr;
+
+static char* knot_addr2s(const ipv6_addr_t* addr) {
+    static char addrStr[40];
+    ipv6_addr_to_str(addrStr, addr, 40);
+    return addrStr;
+}
 
 void knot_request_network_and_identity_from_gateway(void) {
     uint8_t cborBuffer[50];
@@ -75,21 +84,17 @@ void knot_request_network_and_identity_from_gateway(void) {
     puts("knot_request_network_and_identity_from_gateway: end");
 }
 
-int set_address(const cbor_stream_t *stream, size_t offset) {
+int knot_set_address(const cbor_stream_t *stream, size_t offset) {
     uint8_t value[16];
     int ret = cbor_deserialize_byte_string(stream, offset, (char*)value, sizeof(value));
     
-    char addressStr[40];
-
     // set IPv6 address to value
     ipv6_addr_t addr;
     memcpy(&addr.u8, value, 16);
 
-    ipv6_addr_to_str(addressStr, &addr, 40);
-
 
     if (ng_ipv6_netif_add_addr(7, &addr, 112, NG_IPV6_NETIF_ADDR_FLAGS_UNICAST) != NULL) {
-        printf("Successfully set IPv6 address to %s\n", addressStr);
+        printf("Successfully set IPv6 address to %s\n", knot_addr2s(&addr));
     }
     else {
         printf("Failed to set IPv6 address!\n");
@@ -127,7 +132,7 @@ void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyL
                 offset += relic_cbor2ec_compressed(knot_localTA, &stream, offset);
             }
             else if (strncmp("id", key, 2) == 0) {
-                offset += set_address(&stream, offset);
+                offset += knot_set_address(&stream, offset);
             }
             else if (strncmp("key", key, 3) == 0) {
                 size_t length;
@@ -144,12 +149,156 @@ void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyL
     }
 }
 
+void knot_TA_lookup_request_send(const ipv6_addr_t* forAddress) {
+    ipv6_addr_t lookupAddress;
+    memcpy(&lookupAddress, forAddress, sizeof(ipv6_addr_t));
+    lookupAddress.u8[14] = 0x0;
+    lookupAddress.u8[15] = 0x1;
+
+    uint8_t cborBuffer[10];
+    cbor_stream_t stream;
+
+
+    cbor_init(&stream, cborBuffer, 10);
+    cbor_serialize_unicode_string(&stream, "TAL");
+
+    knot_send_udp_packet(lookupAddress, 4224, stream.data, stream.pos);
+
+    cbor_clear(&stream);
+
+    printf("Send TA lookup request to %s.\n", knot_addr2s(&lookupAddress));
+}
+
+void knot_clear_last_message(void) {
+    if (knot_unauthenticatedLastMessage) {
+        free(knot_unauthenticatedLastMessage);
+        knot_unauthenticatedLastMessageLen = 0;
+        memset(&knot_unauthenticatedLastMessageAddr, 0, sizeof(knot_unauthenticatedLastMessageAddr));
+    }
+}
+
+void knot_handle_authenticated_query(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen) {
+    printf("Begin of knot_handle_authenticated_query for %s\n", knot_addr2s(src_addr));
+    if (knot_remoteTA_prefix[0][0] == 0) {
+        printf("No remote TA available yet.\n");
+        printf("Cache current message for later\n");
+        knot_clear_last_message();
+        knot_unauthenticatedLastMessage = malloc(replyLen);
+        knot_unauthenticatedLastMessageLen = replyLen;
+        memcpy(knot_unauthenticatedLastMessage, reply, knot_unauthenticatedLastMessageLen);
+        memcpy(&knot_unauthenticatedLastMessageAddr, src_addr, sizeof(ipv6_addr_t));
+        knot_TA_lookup_request_send(src_addr);
+    }
+    else {
+        printf("Remote TA key available, checking prefix.\n");
+        (void)knot_remoteTA_key[0];
+    }
+
+    printf("End of knot_handle_authenticated_query for %s\n", knot_addr2s(src_addr));
+}
+
+void knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen) {
+    printf("Begin of knot_verify_message for %s\n", knot_addr2s(src_addr));
+    
+    printf("Begin CBOR decoding.\n");
+    cbor_stream_t stream;
+    cbor_init(&stream, data, dataLen);
+
+    size_t mapLength = 0;
+    size_t offset = cbor_deserialize_map(&stream, 0, &mapLength);
+    assert(mapLength == 2);
+
+    char* message = NULL;
+
+    ec_t R;
+    bn_t z;
+    bn_t h;
+
+    ec_null(R); ec_new(R);
+    bn_null(z); bn_new(z);
+    bn_null(h); bn_new(h);
+
+    for (int mapIndex = 0; mapIndex < mapLength; mapIndex++) {
+        char key[10];
+        char tmpMessage[30];
+        memset(key, 0, sizeof(key));
+        offset += cbor_deserialize_unicode_string(&stream, offset, key, 10);
+
+        if (strncmp("msg", key, 3) == 0) {
+            memset(tmpMessage, 0, 30);
+            offset += cbor_deserialize_byte_string(&stream, offset, tmpMessage, 30);
+            message = malloc(strlen(tmpMessage + 1));
+            strncpy(message, tmpMessage, 30);
+        }
+        else if (strncmp("sig", key, 3) == 0) {
+            size_t length;
+            offset += cbor_deserialize_array(&stream, offset, &length);
+            assert(length == 3);
+            offset += relic_cbor2ec_compressed(R, &stream, offset);
+            offset += relic_cbor2bn(z, &stream, offset);
+            offset += relic_cbor2bn(h, &stream, offset);
+        }
+    }
+    printf("End CBOR decoding.\n");
+
+    printf("Begin verifiying message.\n");
+    if (cp_vbnn_ibs_user_verify(R, z, h, (uint8_t*)src_addr, 16, (uint8_t*)message, strlen(message), knot_remoteTA_key[0]) != 0) {
+        printf("Signature is valid.\n");
+    }
+    else {
+        printf("Signature is invalid.\n");
+    }
+    printf("End verifiying message.\n");
+
+    free(message);
+    ec_free(R); bn_free(z); bn_free(h);
+    printf("End of knot_verify_message for %s\n", knot_addr2s(src_addr));
+}
+
+void knot_handle_ta_lookup_response(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen) {
+    printf("Begin of knot_handle_ta_lookup_response for %s\n", knot_addr2s(src_addr));
+    cbor_stream_t stream;
+
+    printf("Begin CBOR decoding.\n");
+    cbor_init(&stream, (uint8_t*)reply, replyLen);
+    char prefixPlustaPK[6 + 35];
+    
+    //cbor_deserialize_byte_string(&stream, 0, taPublicKeyBin, sizeof(taPublicKeyBin));
+    printf("End CBOR decoding.\n");
+
+    printf("Begin verifying TA public key agianst embedded hash.\n");
+    /* 6 bytes global prefix */
+    memcpy(prefixPlustaPK, src_addr, 6);
+    /* FP_BYTES + 1 bytes TA public key */
+    memcpy(prefixPlustaPK + 6, reply, replyLen);
+
+    uint8_t hash[MD_LEN];
+    md_map(hash, (uint8_t*)prefixPlustaPK, sizeof(prefixPlustaPK));
+    if (util_cmp_const(((uint8_t*)src_addr) + 6, hash, 8) == CMP_EQ) {
+        printf("TA public key verification successful.\n");
+        
+        printf("Store prefix/TA public key in cache.\n");
+        memcpy(knot_remoteTA_prefix[0], src_addr, 6);
+        relic_cbor2ec_compressed(knot_remoteTA_key[0], &stream, 0);
+        printf("End verifying TA public key agianst embedded hash.\n");
+
+        if (knot_unauthenticatedLastMessage) {
+            printf("Authenticate last unauthenticated message from %s\n", knot_addr2s(&knot_unauthenticatedLastMessageAddr));
+            knot_verify_message(&knot_unauthenticatedLastMessageAddr, knot_unauthenticatedLastMessage, knot_unauthenticatedLastMessageLen);
+        }
+    }
+    else {
+        printf("TA public key verification failed.\n");
+        printf("End verifying TA public key agianst embedded hash.\n");
+    }
+
+    printf("End of knot_handle_ta_lookup_response for %s\n", knot_addr2s(src_addr));
+}
+
 int main(void)
 {
-    shell_t shell;
-
     puts("RIOT IBC E2E Authentication for IoT Application");
-
+    
     /* start shell */
     puts("All up, running the shell now");
 
@@ -179,10 +328,12 @@ int main(void)
     knot_start_server("4223");
     knot_request_network_and_identity_from_gateway();
 
-    printf("Setting up shell now...\n");
     posix_open(uart0_handler_pid, 0);
-    shell_init(&shell, shell_commands, UART0_BUFSIZE, uart0_readc, uart0_putc);
-    shell_run(&shell);
+
+    for(;;) {
+        sleep(30);
+        printf(".\n");
+    }
 
     vbnn_ibs_user_free(knot_ownUser);
     ec_free(knot_localTA);

@@ -14,12 +14,18 @@
 
 #include "hl_network.h"
 
-static ng_netreg_entry_t knot_server = {NULL, NG_NETREG_DEMUX_CTX_ALL,
+static ng_netreg_entry_t knot_server_init = {NULL, NG_NETREG_DEMUX_CTX_ALL,
+                                   KERNEL_PID_UNDEF};
+static ng_netreg_entry_t knot_server_api = {NULL, NG_NETREG_DEMUX_CTX_ALL,
+                                   KERNEL_PID_UNDEF};
+static ng_netreg_entry_t knot_server_lookup = {NULL, NG_NETREG_DEMUX_CTX_ALL,
                                    KERNEL_PID_UNDEF};
 
-static char knot_stack[512*5]; // *5 works
+static char knot_stack[512*7 + 512]; // *5 works
 
 extern void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyLen);
+extern void knot_handle_authenticated_query(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen);
+extern void knot_handle_ta_lookup_response(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen);
 
 static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* dst_addr, uint16_t *dst_port, uint8_t **buffer, size_t *buffer_size) {
     int snips = 0;
@@ -35,7 +41,7 @@ static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* d
         else if (snip->type == NG_NETTYPE_UDP) {
             headers++;
             ng_udp_hdr_t* udp_head = snip->data;
-            *dst_port = udp_head->dst_port.u16;
+            *dst_port = byteorder_ntohs(udp_head->dst_port);
         }
         else if (snip->type == NG_NETTYPE_IPV6) {
             headers++;
@@ -62,10 +68,7 @@ static void *knot_eventloop(void *arg) {
     msg_init_queue(msg_queue, 10);
 
     while (1) {
-        puts("msg_receive");
-        ps();
         msg_receive(&msg);
-        puts("got message");
 
         switch (msg.type) {
             case NG_NETAPI_MSG_TYPE_RCV:
@@ -77,9 +80,17 @@ static void *knot_eventloop(void *arg) {
                 size_t pLen;
                 int success = net_get_udp_payload((ng_pktsnip_t *)msg.content.ptr, (void*)&src_addr, (void*)&dst_addr, &port, &payload, &pLen);
                 if (success == 3) {
-                    if (true /*port == 4223*/) {
-                        // dynamic configuration request;
+                    if (port == 4223) {
+                        printf("Received dynamic configuration request\n");
                         knot_handle_dynamic_configuration_reply(payload, pLen);
+                    }
+                    else if (port == 4222) {
+                        printf("Received authenticated query request\n");
+                        knot_handle_authenticated_query(&src_addr, payload, pLen);
+                    }
+                    else if (port == 4224) {
+                        printf("Received TA lookup response\n");
+                        knot_handle_ta_lookup_response(&src_addr, payload, pLen);
                     }
                     else {
                         printf("Unsupported port: %d\n", port);
@@ -87,6 +98,9 @@ static void *knot_eventloop(void *arg) {
                 }
                 else {
                     printf("Not an UDP packet.\n");
+                }
+                if (payload != NULL) {
+                    free(payload);
                 }
                 break;
             default:
@@ -103,9 +117,9 @@ void knot_start_server(char *port_str) {
     uint16_t port;
 
     /* check if knot_server is already running */
-    if (knot_server.pid != KERNEL_PID_UNDEF) {
+    if (knot_server_init.pid != KERNEL_PID_UNDEF) {
         printf("Error: knot_server already running on port %" PRIu32 "\n",
-                knot_server.demux_ctx);
+                knot_server_init.demux_ctx);
         return;
     }
 
@@ -117,12 +131,21 @@ void knot_start_server(char *port_str) {
     }
 
     /* start knot_server (which means registering pktdump for the chosen port) */
-    ps();
-    knot_server.pid = thread_create(knot_stack, sizeof(knot_stack), THREAD_PRIORITY_MAIN + 1, 
+    knot_server_init.pid = thread_create(knot_stack, sizeof(knot_stack), THREAD_PRIORITY_MAIN + 1, 
                                 CREATE_STACKTEST /* | CREATE_SLEEPING */, knot_eventloop, NULL, "UDP receiver");
-    knot_server.demux_ctx = 4223;
-    printf("After thread create.\n");
-    ng_netreg_register(NG_NETTYPE_UDP, &knot_server);
+    // register for dynamic configuration reply
+    knot_server_init.demux_ctx = 4223;
+    ng_netreg_register(NG_NETTYPE_UDP, &knot_server_init);
+
+    // register for signed messages
+    knot_server_api.pid = knot_server_init.pid;
+    knot_server_api.demux_ctx = 4222;
+    ng_netreg_register(NG_NETTYPE_UDP, &knot_server_api);
+
+    knot_server_lookup.pid = knot_server_init.pid;
+    knot_server_lookup.demux_ctx = 4224;
+    ng_netreg_register(NG_NETTYPE_UDP, &knot_server_lookup);
+
     printf("Success: started UDP server\n");
 }
 
