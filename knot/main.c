@@ -13,6 +13,7 @@
 #include <norx.h>
 
 #include <norx.c>
+#include <malloc.h>
 
 #include "relic_cbor.h"
 
@@ -42,6 +43,25 @@ static char* knot_addr2s(const ipv6_addr_t* addr) {
     ipv6_addr_to_str(addrStr, addr, 40);
     return addrStr;
 }
+#if 0
+  size_t arena;    /* total space allocated from system */
+  size_t ordblks;  /* number of non-inuse chunks */
+  size_t hblks;    /* number of mmapped regions */
+  size_t hblkhd;   /* total space in mmapped regions */
+  size_t uordblks; /* total allocated space */
+  size_t fordblks; /* total non-inuse space */
+  size_t keepcost; /* top-most, releasable (via malloc_trim) space */
+#endif
+
+void knot_print_heap_stats(void) {
+    printf("heap stats:     arena: %d, ordblks: %d, hblks: %d, hblkhd: %d, uordblks: %d, fordblks: %d\n", 
+        mallinfo().arena, 
+        mallinfo().ordblks, 
+        mallinfo().hblks,
+        mallinfo().hblkhd,
+        mallinfo().uordblks, 
+        mallinfo().fordblks);
+}
 
 int knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen, char *cmd);
 void knot_send_authenticated_reply(ipv6_addr_t* target_address);
@@ -50,6 +70,7 @@ void knot_request_network_and_identity_from_gateway(void) {
     uint8_t cborBuffer[50];
     cbor_stream_t stream;
     puts("knot_request_network_and_identity_from_gateway: begin");
+    knot_print_heap_stats();
     // generate nonce
     rand_bytes(knot_configNonce, 16);
 
@@ -84,6 +105,7 @@ void knot_request_network_and_identity_from_gateway(void) {
 
     free(requestCiphertext);
     requestCiphertext = 0;
+    knot_print_heap_stats();
     puts("knot_request_network_and_identity_from_gateway: end");
 }
 
@@ -109,7 +131,7 @@ int knot_set_address(const cbor_stream_t *stream, size_t offset) {
 
 void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyLen) {
     puts("Attempt do decrypt dynamic configuration response.");
-    printf("Attempt to allocate %d bytes.\n", replyLen);
+    knot_print_heap_stats();
     uint8_t* plaintext = malloc(replyLen);
     size_t plaintextLen = replyLen;
 
@@ -150,6 +172,7 @@ void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyL
     else {
         puts("Decryption of dynamic configuration request failed.");
     }
+    knot_print_heap_stats();
 }
 
 void knot_TA_lookup_request_send(const ipv6_addr_t* forAddress) {
@@ -200,7 +223,7 @@ void knot_handle_authenticated_query(ipv6_addr_t* src_addr, uint8_t* reply, size
             int validSig = knot_verify_message(src_addr, reply, replyLen, cmd);
             if (validSig) {
                 if (strncmp("rnd", cmd, 3) == 0) {
-                    knot_send_authenticated_reply(&knot_unauthenticatedLastMessageAddr);
+                    knot_send_authenticated_reply(src_addr);
                 }
             }
         }
@@ -211,7 +234,7 @@ void knot_handle_authenticated_query(ipv6_addr_t* src_addr, uint8_t* reply, size
 
 int knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen, char *cmd) {
     printf("Begin of knot_verify_message for %s\n", knot_addr2s(src_addr));
-    
+    knot_print_heap_stats();
     printf("Begin CBOR decoding.\n");
     cbor_stream_t stream;
     cbor_init(&stream, data, dataLen);
@@ -265,15 +288,16 @@ int knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen, ch
         printf("Signature is invalid.\n");
     }
     printf("End verifying message.\n");
-    ps();
     free(message);
     ec_free(R); bn_free(z); bn_free(h);
+    knot_print_heap_stats();
     printf("End of knot_verify_message for %s\n", knot_addr2s(src_addr));
     return result;
 }
 
 void knot_send_authenticated_reply(ipv6_addr_t* target_address) {
     printf("Begin of knot_send_authenticated_reply for %s\n", knot_addr2s(target_address));
+    knot_print_heap_stats();
     uint8_t replyBuffer[200];
     uint8_t reply[10];
     rand_bytes(reply, 10);
@@ -309,7 +333,7 @@ void knot_send_authenticated_reply(ipv6_addr_t* target_address) {
 
     knot_send_udp_packet(*target_address, 4222, stream.data, stream.pos);
 
-    ps();
+    knot_print_heap_stats();
     printf("End of knot_send_authenticated_reply for %s\n", knot_addr2s(target_address));
 }
 
@@ -370,7 +394,12 @@ int main(void)
     ng_netapi_set(7, NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
     puts("Set channel to 12");
 
+    uint16_t retrans = 7;
+    ng_netapi_set(7, NETOPT_RETRANS, 0, &retrans, sizeof(uint16_t));
 
+    printf("retrans: %d\n", retrans);
+
+    knot_print_heap_stats();
     puts("Initialize RELIC...");
     core_init();
     ec_param_set_any();
@@ -386,9 +415,11 @@ int main(void)
 
 
     // initiate dynamic initialization
+    knot_print_heap_stats();
     printf("Initiate dynamic device initialization\n");
     knot_start_server();
     knot_request_network_and_identity_from_gateway();
+    knot_print_heap_stats();
 
     posix_open(uart0_handler_pid, 0);
 
