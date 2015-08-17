@@ -21,11 +21,11 @@ static ng_netreg_entry_t knot_server_api = {NULL, NG_NETREG_DEMUX_CTX_ALL,
 static ng_netreg_entry_t knot_server_lookup = {NULL, NG_NETREG_DEMUX_CTX_ALL,
                                    KERNEL_PID_UNDEF};
 
-static char knot_stack[512*7 + 512]; // *5 works
+static char knot_stack[512*8]; // *5 works
 
-extern void knot_handle_dynamic_configuration_reply(const uint8_t* reply, size_t replyLen);
-extern void knot_handle_authenticated_query(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen);
-extern void knot_handle_ta_lookup_response(const ipv6_addr_t* src_addr, const uint8_t* reply, size_t replyLen);
+extern void knot_handle_dynamic_configuration_reply(uint8_t* reply, size_t replyLen);
+extern void knot_handle_authenticated_query(ipv6_addr_t* src_addr, uint8_t* reply, size_t replyLen);
+extern void knot_handle_ta_lookup_response(ipv6_addr_t* src_addr, uint8_t* reply, size_t replyLen);
 
 static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* dst_addr, uint16_t *dst_port, uint8_t **buffer, size_t *buffer_size) {
     int snips = 0;
@@ -113,23 +113,7 @@ static void *knot_eventloop(void *arg) {
     return NULL;
 }
 
-void knot_start_server(char *port_str) {
-    uint16_t port;
-
-    /* check if knot_server is already running */
-    if (knot_server_init.pid != KERNEL_PID_UNDEF) {
-        printf("Error: knot_server already running on port %" PRIu32 "\n",
-                knot_server_init.demux_ctx);
-        return;
-    }
-
-    /* parse port */
-    port = (uint16_t)atoi(port_str);
-    if (port == 0) {
-        puts("Error: invalid port specified");
-        return;
-    }
-
+void knot_start_server(void) {
     /* start knot_server (which means registering pktdump for the chosen port) */
     knot_server_init.pid = thread_create(knot_stack, sizeof(knot_stack), THREAD_PRIORITY_MAIN + 1, 
                                 CREATE_STACKTEST /* | CREATE_SLEEPING */, knot_eventloop, NULL, "UDP receiver");

@@ -44,7 +44,9 @@ USEMODULE += cbor
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
+# flag for stack thinning: -fstack-usage
 CFLAGS += -DDEVELHELP -I$(CURDIR)/../3rdParty/NORX/norx3261/ref -I$(CURDIR)/../3rdParty/relic/include -I$(CURDIR)/build/relic/include
+#CFLAGS += -fstack-usage
 #CFLAGS += -DTHREAD_STACKSIZE_MAIN=4000
 
 LINKFLAGS += -L$(CURDIR)/build/relic/lib -lrelic_s

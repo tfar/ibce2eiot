@@ -7,4 +7,4 @@
 #include "net/ng_udp.h"
 
 void knot_send_udp_packet(ipv6_addr_t addr, uint16_t port, uint8_t* data, size_t length);
-void knot_start_server(char *port_str);
+void knot_start_server(void);
