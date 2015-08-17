@@ -45,7 +45,7 @@ static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* d
         }
         else if (snip->type == NG_NETTYPE_IPV6) {
             headers++;
-            ng_ipv6_hdr_t* ipv6_head = snip->data;
+            ipv6_hdr_t* ipv6_head = snip->data;
             memcpy(src_addr, &ipv6_head->src, 16);
             memcpy(dst_addr, &ipv6_head->dst, 16);
         }
@@ -126,6 +126,7 @@ void knot_start_server(void) {
     knot_server_api.demux_ctx = 4222;
     ng_netreg_register(NG_NETTYPE_UDP, &knot_server_api);
 
+    // register for TA lookup
     knot_server_lookup.pid = knot_server_init.pid;
     knot_server_lookup.demux_ctx = 4224;
     ng_netreg_register(NG_NETTYPE_UDP, &knot_server_lookup);
