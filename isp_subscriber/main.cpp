@@ -70,12 +70,14 @@ std::string byteVecToStr(const std::vector<uint8_t>& data) {
 #include "network_interface.h"
 #include "ta_lookup_responder.h"
 #include "iot_service.h"
+#include "ta_lookup_cache.h"
 
 // other sources
 #include "ibc.cpp"
 #include "../gateway/network.cpp"
 #include "network_interface.cpp"
 #include "ta_lookup_responder.cpp"
+#include "ta_lookup_cache.cpp"
 #include "iot_service.cpp"
 #include "relic_cbor.c"
 
@@ -211,8 +213,11 @@ int main(int argc, char* argv[]) {
 		boost::thread networkThread(network_thread);
 
 		// prompt loop
-		char *line = NULL;
-		while((line = linenoise("> ")) != NULL) {
+		//char *line = NULL;
+		std::string line; 
+		while(true/* (line = linenoise("> ")) != NULL*/) {
+			printf("> ");
+			std::getline(std::cin, line);
 			std::string lineStr(line);
 
 			bool unknownCommand = false;
@@ -224,15 +229,19 @@ int main(int argc, char* argv[]) {
 			else if (lineStr == "query") {
 				iotService->sendQuery("fd2d:388:6a7b:d4e8:9739:f1ac:aed5:5", "rnd");
 			}
+			else if (lineStr == "cache") {
+				iotService->getCache()->printCache();
+			}
 			else {
 				printf("Unknown command.\n");
 				unknownCommand = true;
 			}
 			if (!unknownCommand) {
-				linenoiseHistoryAdd(line); /* Add to the history. */
+				//linenoiseHistoryAdd(line); /* Add to the history. */
 				linenoiseHistorySave(".history.txt"); /* Save the history on disk. */
 			}
-			free(line);
+			line = "";
+			//free(line);
 		}
 
 		networkThread.join();

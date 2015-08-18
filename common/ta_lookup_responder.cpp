@@ -60,31 +60,25 @@ void TALookupResponder::startReceive() {
 		boost::bind(&TALookupResponder::handleRequestReceived, this,
 		  boost::asio::placeholders::error,
 		  boost::asio::placeholders::bytes_transferred));
-	LOG(INFO) << "Waiting for TA lookup requests on: " << socket_->local_endpoint()	;
+	LOG(INFO) << "Waiting for TA lookup requests on: " << socket_->local_endpoint();
 }
 
 void TALookupResponder::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
-#if !defined(__linux__)
-	disableRawMode(STDIN_FILENO);
-#endif
 	if (!error) {
 		LOG(INFO) << "Request received from " << remote_endpoint_;
 		std::vector<uint8_t> replyData = ta_->getPublicKey();
 	
 		LOG(INFO) << "send TA parameters back";
 		socket_->async_send_to(boost::asio::buffer(replyData), remote_endpoint_,
-    	      boost::bind(&TALookupResponder::handleSend, this,
-    	        boost::asio::placeholders::error,
-    	        boost::asio::placeholders::bytes_transferred));
+			  boost::bind(&TALookupResponder::handleSend, this,
+				boost::asio::placeholders::error,
+				boost::asio::placeholders::bytes_transferred));
 
 		startReceive();
 	}
 	else {
 		LOG(INFO) << "Error: " << error << " : " << error.message();
 	}
-#if !defined(__linux__)
-	enableRawMode(STDIN_FILENO);
-#endif
 }
 
 void TALookupResponder::handleSend(const boost::system::error_code& /*error*/, std::size_t /*bytes_transferred*/) {

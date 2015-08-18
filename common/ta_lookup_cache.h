@@ -24,38 +24,33 @@ THE SOFTWARE.
 
 #pragma once
 
-#include <memory>
-#include <string>
+#include <map>
+#include <array>
+#include <tuple>
 
-#include <boost/asio.hpp>
+#include <boost/signals2/signal.hpp>
 
-#include "ta_lookup_cache.h"
-
-class IoTService {
+class TALookupCache {
 public:
-	IoTService(boost::asio::io_service& ioservice, const std::array<uint8_t, 16>& id, IBC_User user);
+	TALookupCache(boost::asio::io_service& ioservice, std::array<uint8_t, 16> address);
 
-	void sendMessage(const std::string& message);
-	void sendQuery(const std::string& target, const std::string& message);
-
-	std::shared_ptr<TALookupCache> getCache();
+public:
+	std::tuple<bool, ec> getTAKeyOrRequest(std::array<uint8_t, 16> address);
+	std::tuple<bool, ec> getTAKeyOrRequest(std::array<uint8_t, 14> prefix);
+	size_t cacheSize();
+	void printCache();
 
 private:
+	void handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred);
 	void startReceive();
-	void handleMessageReceived(const boost::system::error_code& error, size_t bytes_transferred);
+	void requestTA(std::array<uint8_t, 14> prefix);
 
-	void authenticateMessage(boost::asio::ip::address_v6 senderAddress, std::vector<uint8_t> data, ec taKey);
-	void handleDelayedAuthentication(boost::asio::ip::udp::endpoint remoteEndpoint, std::vector<uint8_t> data, std::array<uint8_t, 14> taPrefix, ec taKey);
+public:
+	boost::signals2::signal<void (std::array<uint8_t, 14>, ec)> onTAKeyAvailable;
 
 private:
-	std::shared_ptr<TALookupCache> lookupCache_;
-
+	std::map<std::array<uint8_t, 14>, ec> lookupCache_;
 	std::shared_ptr<boost::asio::ip::udp::socket> socket_;
-	std::array<uint8_t, 16> id_;
-	std::shared_ptr<IBC_User> ibcUser_;
-
 	boost::asio::ip::udp::endpoint remote_endpoint_;
 	std::array<char, 200> recv_buffer_;
-
-	std::vector<std::tuple<>> cachedMessages_;
 };

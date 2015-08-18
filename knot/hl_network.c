@@ -40,7 +40,7 @@ static int net_get_udp_payload(ng_pktsnip_t *snip, uint8_t* src_addr, uint8_t* d
         }
         else if (snip->type == NG_NETTYPE_UDP) {
             headers++;
-            ng_udp_hdr_t* udp_head = snip->data;
+            udp_hdr_t* udp_head = snip->data;
             *dst_port = byteorder_ntohs(udp_head->dst_port);
         }
         else if (snip->type == NG_NETTYPE_IPV6) {

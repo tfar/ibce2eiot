@@ -8,6 +8,7 @@
 #include "posix_io.h"
 #include "unistd.h"
 #include "ps.h"
+#include "board.h"
 
 #include <relic.h>
 #include <norx.h>
@@ -27,6 +28,7 @@ const uint8_t knot_confResponseKey[16] ={0xbe, 0x87, 0x7c, 0x23, 0xf0, 0x6c, 0x5
                                     0x92, 0xda, 0xe9, 0xd1, 0xf2, 0xf9, 0x36, 0x7c};
 
 uint8_t knot_configNonce[16];
+uint8_t own_address[16];
 
 static ec_t knot_localTA;
 static vbnn_ibs_user_t knot_ownUser;
@@ -116,6 +118,7 @@ int knot_set_address(const cbor_stream_t *stream, size_t offset) {
     // set IPv6 address to value
     ipv6_addr_t addr;
     memcpy(&addr.u8, value, 16);
+    memcpy(own_address, value, 16);
 
 
     if (ng_ipv6_netif_add_addr(7, &addr, 112, NG_IPV6_NETIF_ADDR_FLAGS_UNICAST) != NULL) {
@@ -278,6 +281,7 @@ int knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen, ch
     printf("End CBOR decoding.\n");
 
     printf("Begin verifying message.\n");
+    LED_TOGGLE;
     if (cp_vbnn_ibs_user_verify(R, z, h, (uint8_t*)src_addr, 16, (uint8_t*)message, strlen(message), knot_remoteTA_key[0]) != 0) {
         printf("Signature is valid.\n");
         strncpy(cmd, message, 10);
@@ -287,6 +291,7 @@ int knot_verify_message(ipv6_addr_t *src_addr, uint8_t *data, size_t dataLen, ch
         result = 0;
         printf("Signature is invalid.\n");
     }
+    LED_TOGGLE;
     printf("End verifying message.\n");
     free(message);
     ec_free(R); bn_free(z); bn_free(h);
@@ -304,7 +309,6 @@ void knot_send_authenticated_reply(ipv6_addr_t* target_address) {
     printf("Reply data: ");
     for (int n = 0; n < 10; n++) printf("%02x", reply[n]);
     printf("\n");
-    (void)replyBuffer;
     printf("Begin signing data.\n");
     ec_t R;
     bn_t z;
@@ -314,7 +318,9 @@ void knot_send_authenticated_reply(ipv6_addr_t* target_address) {
     bn_null(z); bn_new(z);
     bn_null(h); bn_new(h);
 
-    cp_vbnn_ibs_user_sign(R, z, h, (uint8_t*)target_address, 16, (uint8_t*)reply, sizeof(reply), knot_ownUser);
+    LED_TOGGLE;
+    cp_vbnn_ibs_user_sign(R, z, h, own_address, 16, (uint8_t*)reply, sizeof(reply), knot_ownUser);
+    LED_TOGGLE;
     printf("End signing data.\n");
 
     printf("Begin CBOR encoding.\n");
@@ -324,6 +330,7 @@ void knot_send_authenticated_reply(ipv6_addr_t* target_address) {
     cbor_serialize_unicode_string(&stream, "msg");
     cbor_serialize_byte_stringl(&stream, (char*)reply, sizeof(reply));
     cbor_serialize_unicode_string(&stream, "sig");
+    cbor_serialize_array(&stream, 3);
     relic_ec2cbor_compressed(&stream, R);
     relic_bn2cbor(&stream, z);
     relic_bn2cbor(&stream, h);
@@ -390,9 +397,9 @@ int main(void)
     
     /* set 802.15.4 channel to 12 */
     //net_if_set_channel(7, 12);
-    uint16_t channel = 12;
+    uint16_t channel = 25;
     ng_netapi_set(7, NETOPT_CHANNEL, 0, &channel, sizeof(uint16_t));
-    puts("Set channel to 12");
+    puts("Set channel to 25");
 
     uint16_t retrans = 7;
     ng_netapi_set(7, NETOPT_RETRANS, 0, &retrans, sizeof(uint16_t));

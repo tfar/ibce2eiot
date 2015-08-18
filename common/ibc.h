@@ -64,6 +64,35 @@ public:
 	vbnn_ibs_user_t user;
 };
 
+class ec {
+public:
+	ec() {
+		ec_null(p);
+		ec_new(p);
+	}
+
+	ec( const ec& other ) {
+		ec_null(p);
+		ec_new(p);
+
+		ec_copy(p, other.p);
+	}
+
+	ec( ec& other ) {
+		ec_null(p);
+		ec_new(p);
+
+		ec_copy(p, other.p);
+	}
+	
+	~ec() {
+		ec_free(p);
+	}
+
+public:
+	ec_t p;
+};
+
 class TA {
 public:
 	static std::shared_ptr<TA> init();
@@ -122,6 +151,15 @@ public:
 		ec_free(R);
 		bn_free(z);
 		bn_free(h);
+	}
+
+	static Signature fromCBORArray(cbor_item_t* item) {
+		Signature sig;
+		assert(cbor_array_size(item) == 3);
+		relic_cbor2ec_compressed(sig.R, cbor_array_get(item, 0));
+		relic_cbor2bn(sig.z, cbor_array_get(item, 1));
+		relic_cbor2bn(sig.h, cbor_array_get(item, 2));
+		return sig;
 	}
 
 	cbor_item_t* toCBORArray() {

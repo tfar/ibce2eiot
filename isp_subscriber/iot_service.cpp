@@ -51,10 +51,81 @@ IoTService::IoTService(boost::asio::io_service& ioservice, const std::array<uint
 	socket_->set_option(boost::asio::ip::udp::socket::reuse_address(true));
 	socket_->bind(endpoint);
 	LOG(INFO) << "local endpoint:" << socket_->local_endpoint();
+
+	lookupCache_ = std::make_shared<TALookupCache>(ioservice, id);
 }
 
 void IoTService::sendMessage(const std::string& message) {
 
+}
+
+void IoTService::startReceive() {
+	socket_->async_receive_from(
+		boost::asio::buffer(recv_buffer_), remote_endpoint_,
+		boost::bind(&IoTService::handleMessageReceived, this,
+		  boost::asio::placeholders::error,
+		  boost::asio::placeholders::bytes_transferred));
+	LOG(INFO) << "Waiting for signed message: " << socket_->local_endpoint();
+}
+
+void IoTService::handleMessageReceived(const boost::system::error_code& error, size_t bytes_transferred) {
+	LOG(INFO) << "Message received from " << remote_endpoint_;
+	std::tuple<bool, ec> lookupResult = lookupCache_->getTAKeyOrRequest(remote_endpoint_.address().to_v6().to_bytes());
+	std::vector<uint8_t> data = std::vector<uint8_t>(recv_buffer_.data(), recv_buffer_.data() + bytes_transferred);
+	if (std::get<0>(lookupResult) == false) {
+		LOG(INFO) << "Cache unauthenticated message as we do not know the TA public key yet.";
+		lookupCache_->onTAKeyAvailable.connect(boost::bind(&IoTService::handleDelayedAuthentication, this, remote_endpoint_, data, _1, _2));
+	}
+	else {
+		LOG(INFO) << "Pinned TA key lookup successful.";
+		std::array<uint8_t, 16> remoteAddress = remote_endpoint_.address().to_v6().to_bytes();
+		std::array<uint8_t, 14> prefix;
+		memcpy(prefix.data(), remoteAddress.data(), prefix.size());
+		authenticateMessage(remote_endpoint_.address().to_v6(), data, std::get<1>(lookupResult));
+	}
+}
+
+void IoTService::authenticateMessage(boost::asio::ip::address_v6 senderAddress, std::vector<uint8_t> data, ec taKey) {
+	LOG(INFO) << "CBOR decode message...";
+
+	Signature sig;
+	std::vector<uint8_t> message;
+	std::array<uint8_t, 16> senderBytes = senderAddress.to_bytes();
+	std::vector<uint8_t> senderBytesVec(senderBytes.begin(), senderBytes.end());
+
+	struct cbor_load_result result;
+	cbor_item_t* item = cbor_load(data.data(), data.size(), &result);
+	size_t pairs = cbor_map_size(item);
+	for (cbor_pair* pair = cbor_map_handle(item); pairs > 0; pair++, pairs--) {
+		if (strncmp(reinterpret_cast<char*>(cbor_string_handle(pair->key)), "sig", 3) == 0) {
+			sig = Signature::fromCBORArray(pair->value);
+		}
+		else if (strncmp(reinterpret_cast<char*>(cbor_string_handle(pair->key)), "msg", 3) == 0) {
+			size_t length = cbor_bytestring_length(pair->value);
+			message = std::vector<uint8_t>(cbor_bytestring_handle(pair->value), cbor_bytestring_handle(pair->value) + length);
+		}
+	}
+	LOG(INFO) << "Authenticating message...";
+	bool sigCorrect = Signature::verify(senderBytesVec, message, taKey.p, sig);
+	if (sigCorrect) {
+		LOG(INFO) << "Signature correct:	msg: " << byteVecToStr(message);
+	}
+	else {
+		LOG(INFO) << "Signature invalid.";
+	}
+}
+
+void IoTService::handleDelayedAuthentication(boost::asio::ip::udp::endpoint remoteEndpoint, std::vector<uint8_t> data, std::array<uint8_t, 14> taPrefix, ec taKey) {
+	std::array<uint8_t, 16> remoteAddress = remoteEndpoint.address().to_v6().to_bytes();
+	if (memcmp(remoteAddress.data(), taPrefix.data(), 14) == 0) {
+		LOG(INFO) << "Received TA key for prefix " << remoteEndpoint.address().to_v6();
+		authenticateMessage(remoteEndpoint.address().to_v6(), data, taKey);
+		lookupCache_->onTAKeyAvailable.disconnect(boost::bind(&IoTService::handleDelayedAuthentication, this, remoteEndpoint, data, _1, _2));
+	}
+}
+
+std::shared_ptr<TALookupCache> IoTService::getCache() {
+	return lookupCache_;
 }
 
 void IoTService::sendQuery(const std::string& target, const std::string& message) {
@@ -62,7 +133,6 @@ void IoTService::sendQuery(const std::string& target, const std::string& message
 	auto idVec = std::vector<uint8_t>(id_.begin(), id_.end());
 	auto data = std::vector<uint8_t>(message.begin(), message.end());
 	LOG(INFO) << "Begin signing message";
-	LOG(INFO) << "data len: " << data.size();
 	Signature sig = Signature::sign(ibcUser_, idVec, data);
 	LOG(INFO) << "End signing message";
 	LOG(INFO) << "Begin CBOR encoding query";
@@ -102,4 +172,5 @@ void IoTService::sendQuery(const std::string& target, const std::string& message
 	}
 	free(buffer);
 	LOG(INFO) << "End sending query to " << target;
+	startReceive();
 }
