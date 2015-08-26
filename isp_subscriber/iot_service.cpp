@@ -74,7 +74,9 @@ void IoTService::handleMessageReceived(const boost::system::error_code& error, s
 	std::vector<uint8_t> data = std::vector<uint8_t>(recv_buffer_.data(), recv_buffer_.data() + bytes_transferred);
 	if (std::get<0>(lookupResult) == false) {
 		LOG(INFO) << "Cache unauthenticated message as we do not know the TA public key yet.";
+		LOG(INFO) << "Begin cache message";
 		lookupCache_->onTAKeyAvailable.connect(boost::bind(&IoTService::handleDelayedAuthentication, this, remote_endpoint_, data, _1, _2));
+		LOG(INFO) << "End cache message";
 	}
 	else {
 		LOG(INFO) << "Pinned TA key lookup successful.";

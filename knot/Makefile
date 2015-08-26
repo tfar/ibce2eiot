@@ -45,10 +45,13 @@ USEMODULE += cbor
 # which is not needed in a production environment but helps in the
 # development process:
 # flag for stack thinning: -fstack-usage
-CFLAGS += -DDEVELHELP -I$(CURDIR)/../3rdParty/NORX/norx3261/ref -I$(CURDIR)/../3rdParty/relic/include -I$(CURDIR)/build/relic/include
+#CFLAGS += -DNO_KNOT_PRINT
+CFLAGS += -DDEVELHELP
+CFLAGS += -I$(CURDIR)/../3rdParty/NORX/norx3261/ref -I$(CURDIR)/../3rdParty/relic/include -I$(CURDIR)/build/relic/include
 #CFLAGS += -fstack-usage
 #CFLAGS += -DTHREAD_STACKSIZE_MAIN=4000
 
+LINKFLAGS += -Wl,-Map=knot.map -Wl,--cref -Wl,--print-gc-sections
 LINKFLAGS += -L$(CURDIR)/build/relic/lib -lrelic_s
 
 # Change this to 0 show compiler invocation lines by default:

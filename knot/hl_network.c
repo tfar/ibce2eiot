@@ -14,6 +14,12 @@
 
 #include "hl_network.h"
 
+#ifndef NO_KNOT_PRINT
+#define KNOT_PRINT(...) printf(__VA_ARGS__)
+#else
+#define KNOT_PRINT(...) do {} while (0)
+#endif
+
 static ng_netreg_entry_t knot_server_init = {NULL, NG_NETREG_DEMUX_CTX_ALL,
                                    KERNEL_PID_UNDEF};
 static ng_netreg_entry_t knot_server_api = {NULL, NG_NETREG_DEMUX_CTX_ALL,
@@ -72,7 +78,7 @@ static void *knot_eventloop(void *arg) {
 
         switch (msg.type) {
             case NG_NETAPI_MSG_TYPE_RCV:
-                puts("received message");
+                KNOT_PRINT("received message");
                 ipv6_addr_t src_addr;
                 ipv6_addr_t dst_addr;
                 uint16_t port = 0;
@@ -81,30 +87,30 @@ static void *knot_eventloop(void *arg) {
                 int success = net_get_udp_payload((ng_pktsnip_t *)msg.content.ptr, (void*)&src_addr, (void*)&dst_addr, &port, &payload, &pLen);
                 if (success == 3) {
                     if (port == 4223) {
-                        printf("Received dynamic configuration request\n");
+                        KNOT_PRINT("Received dynamic configuration request\n");
                         knot_handle_dynamic_configuration_reply(payload, pLen);
                     }
                     else if (port == 4222) {
-                        printf("Received authenticated query request\n");
+                        KNOT_PRINT("Received authenticated query request\n");
                         knot_handle_authenticated_query(&src_addr, payload, pLen);
                     }
                     else if (port == 4224) {
-                        printf("Received TA lookup response\n");
+                        KNOT_PRINT("Received TA lookup response\n");
                         knot_handle_ta_lookup_response(&src_addr, payload, pLen);
                     }
                     else {
-                        printf("Unsupported port: %d\n", port);
+                        KNOT_PRINT("Unsupported port: %d\n", port);
                     }
                 }
                 else {
-                    printf("Not an UDP packet.\n");
+                    KNOT_PRINT("Not an UDP packet.\n");
                 }
                 if (payload != NULL) {
                     free(payload);
                 }
                 break;
             default:
-                puts("default");
+                KNOT_PRINT("default");
                 break;
         }
     }
@@ -131,7 +137,7 @@ void knot_start_server(void) {
     knot_server_lookup.demux_ctx = 4224;
     ng_netreg_register(NG_NETTYPE_UDP, &knot_server_lookup);
 
-    printf("Success: started UDP server\n");
+    KNOT_PRINT("Success: started UDP server\n");
 }
 
 void knot_send_udp_packet(ipv6_addr_t addr, uint16_t port, uint8_t* data, size_t length) {
@@ -141,14 +147,14 @@ void knot_send_udp_packet(ipv6_addr_t addr, uint16_t port, uint8_t* data, size_t
     /* allocate payload */
     payload = ng_pktbuf_add(NULL, data, length, NG_NETTYPE_UNDEF);
     if (payload == NULL) {
-        puts("Error: unable to copy data to packet buffer");
+        KNOT_PRINT("Error: unable to copy data to packet buffer");
         return;
     }
 
     /* allocate UDP header, set source port := destination port */
     udp = ng_udp_hdr_build(payload, (uint8_t*)&port, 2, (uint8_t*)&port, 2);
     if (udp == NULL) {
-        puts("Error: unable to allocate UDP header");
+        KNOT_PRINT("Error: unable to allocate UDP header");
         ng_pktbuf_release(payload);
         return;
     }
@@ -156,7 +162,7 @@ void knot_send_udp_packet(ipv6_addr_t addr, uint16_t port, uint8_t* data, size_t
     /* allocate IPv6 header */
     ip = ng_ipv6_hdr_build(udp, NULL, 0, (uint8_t *)&addr, sizeof(addr));
     if (ip == NULL) {
-        puts("Error: unable to allocate IPv6 header");
+        KNOT_PRINT("Error: unable to allocate IPv6 header");
         ng_pktbuf_release(udp);
         return;
     }
@@ -164,7 +170,7 @@ void knot_send_udp_packet(ipv6_addr_t addr, uint16_t port, uint8_t* data, size_t
     /* send packet */
     sendto = ng_netreg_lookup(NG_NETTYPE_UDP, NG_NETREG_DEMUX_CTX_ALL);
     if (sendto == NULL) {
-        puts("Error: unable to locate UDP thread");
+        KNOT_PRINT("Error: unable to locate UDP thread");
         ng_pktbuf_release(ip);
         return;
     }

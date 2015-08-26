@@ -82,7 +82,6 @@ std::string byteVecToStr(const std::vector<uint8_t>& data) {
 #include "relic_cbor.c"
 
 extern "C" {
-	#include "linenoise.h"
 	#include "norx.c"
 }
 
@@ -166,8 +165,6 @@ int main(int argc, char* argv[]) {
 	if (vm.count("prefix")) {
 		prefixString = vm["prefix"].as<std::string>();
 	}
-	LOG(INFO) << "Load linenoise history...";
-	linenoiseHistoryLoad(".history.txt");
 
 	LOG(INFO) << "Initialize RELIC...";
 	core_init();
@@ -222,7 +219,6 @@ int main(int argc, char* argv[]) {
 
 			bool unknownCommand = false;
 			if (lineStr == "exit") {
-				linenoiseHistorySave(".history.txt");
 				io_service.stop();
 				break;
 			}
@@ -237,8 +233,7 @@ int main(int argc, char* argv[]) {
 				unknownCommand = true;
 			}
 			if (!unknownCommand) {
-				//linenoiseHistoryAdd(line); /* Add to the history. */
-				linenoiseHistorySave(".history.txt"); /* Save the history on disk. */
+				exit(1);
 			}
 			line = "";
 			//free(line);

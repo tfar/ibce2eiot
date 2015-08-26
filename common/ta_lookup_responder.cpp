@@ -65,15 +65,20 @@ void TALookupResponder::startReceive() {
 
 void TALookupResponder::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
 	if (!error) {
-		LOG(INFO) << "Request received from " << remote_endpoint_;
-		std::vector<uint8_t> replyData = ta_->getPublicKey();
-	
-		LOG(INFO) << "send TA parameters back";
-		socket_->async_send_to(boost::asio::buffer(replyData), remote_endpoint_,
-			  boost::bind(&TALookupResponder::handleSend, this,
-				boost::asio::placeholders::error,
-				boost::asio::placeholders::bytes_transferred));
-
+		if (bytes_transferred == 4) {
+			LOG(INFO) << "Request received from " << remote_endpoint_;
+			std::vector<uint8_t> replyData = ta_->getPublicKey();
+		
+			LOG(INFO) << "send TA parameters back";
+			socket_->async_send_to(boost::asio::buffer(replyData), remote_endpoint_,
+				  boost::bind(&TALookupResponder::handleSend, this,
+					boost::asio::placeholders::error,
+					boost::asio::placeholders::bytes_transferred));
+		}
+		else {
+			LOG(INFO) << "Reply received (" << bytes_transferred << " bytes) from " << remote_endpoint_;
+			onReplyDataReceived(remote_endpoint_.address().to_v6(), std::vector<uint8_t>(recv_buffer_.data(), recv_buffer_.data() + bytes_transferred));
+		}
 		startReceive();
 	}
 	else {

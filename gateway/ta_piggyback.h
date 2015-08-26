@@ -24,36 +24,45 @@ THE SOFTWARE.
 
 #pragma once
 
+#include "ta_lookup_cache.h"
+
+#include <thread>
 #include <memory>
+#include <map>
 #include <array>
+#include <vector>
 
-#include <boost/asio.hpp>
-#include <boost/signals2/signal.hpp>
+#include <tins/tins.h>
 
-#include "ibc.h"
-#include "network_interface.h"
+#include <libnetfilter_queue/libnetfilter_queue.h>
 
-class TALookupResponder {
+#include "ta_lookup_responder.h"
+
+class TAPiggyBack {
 public:
-	TALookupResponder(boost::asio::io_service& ioservice, std::shared_ptr<NetworkInterface> networkInterface, std::shared_ptr<TA> ta);
+	TAPiggyBack(boost::asio::io_service& ioservice, boost::asio::ip::address_v6 address);
+	TAPiggyBack(std::shared_ptr<TALookupResponder> lookupResponder, boost::asio::ip::address_v6 address);
+	~TAPiggyBack();
+
+	void run();
+
+	int handle_incoming_packet(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
+              struct nfq_data *nfa);
+
+	static void threadWrapper(TAPiggyBack* ptr);
 
 private:
-	void startReceive();
+	static void sendTALookupResponseAndData(std::array<uint8_t, 14> taPrefix, ec taKey, Tins::IPv6 originalPacket);
+	static Tins::IPv6 generateTALookupResponse(std::array<uint8_t, 14> TAprefix, ec taKey, std::array<uint8_t, 16> to);
 
-	void handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred);
-	void handleSend(const boost::system::error_code& /*error*/,
-      std::size_t /*bytes_transferred*/);
-
-	void generateAndSendResponse();
-
-public:
-	boost::signals2::signal<void (boost::asio::ip::address_v6, std::vector<uint8_t>)> onReplyDataReceived;
-	std::shared_ptr<boost::asio::ip::udp::socket> socket_;
+	void handleTALookupResponse(std::array<uint8_t, 14> taPrefix, ec taKey, std::vector<uint8_t>);
 
 private:
-	boost::asio::ip::udp::endpoint remote_endpoint_;
-	std::array<char, 200> recv_buffer_;
+	nfq_handle *nfqHandle_;
+	nfq_q_handle *qh;
+	std::thread thread_;
+	bool stop_;
 
-	std::shared_ptr<TA> ta_;
-	std::shared_ptr<NetworkInterface> networkInterface_;
+	std::array<uint8_t, 14> localPrefix_;
+	std::shared_ptr<TALookupCache> lookupCache_;
 };

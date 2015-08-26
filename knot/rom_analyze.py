@@ -158,7 +158,11 @@ while True:
   else:
 	break
 
+total = 0
+
 print("Module Sizes")
 print("============")
 for k, v in sizes.iteritems():
+	total = total + int(v)
 	print "%s %s" % (k.ljust(15), str(v).rjust(15))
+print "Total: %s" % total

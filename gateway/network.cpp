@@ -59,6 +59,7 @@ void DynamicConfigurationServer::startReceive() {
 void DynamicConfigurationServer::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
 	LOG(INFO) << "Request received from " << remote_endpoint_;
 
+	LOG(INFO) << "Begin CBOR decoding";
 	struct cbor_load_result result;
 	cbor_item_t* item = cbor_load((uint8_t*)recv_buffer_.data(), bytes_transferred, &result);
 
@@ -68,9 +69,8 @@ void DynamicConfigurationServer::handleRequestReceived(const boost::system::erro
 	cbor_item_t* nonceItem = cbor_array_get(item, 0);
 	cbor_item_t* ciphertextItem = cbor_array_get(item, 1);
 
-	cbor_describe(item, stdout);
-	fflush(stdout);
-
+	//cbor_describe(item, stdout);
+	//fflush(stdout);
 	std::array<uint8_t, 16> nonce;
 	memcpy(nonce.data(), cbor_bytestring_handle(nonceItem), 16);
 
@@ -80,12 +80,17 @@ void DynamicConfigurationServer::handleRequestReceived(const boost::system::erro
 
 	std::array<uint8_t, 16> requestKey;
 	memcpy(requestKey.data(), confRequestKey, 16);
+
+	LOG(INFO) << "End CBOR decoding";
+
+	LOG(INFO) << "Begin NORX decryption";
 	std::tuple<bool, std::vector<uint8_t> > plaintext = NORX::decrypt(
 		std::vector<uint8_t>(), 
 		ciphertext,
 		std::vector<uint8_t>(),
 		nonce,
 		requestKey);
+	LOG(INFO) << "END NORX decryption";
 	cbor_decref(&item);
 
 	if (std::get<0>(plaintext)) {
@@ -128,9 +133,12 @@ void DynamicConfigurationServer::generateCredentialsAndSendResponse(const std::a
 	boost::asio::ip::address_v6 nodeAddress = boost::asio::ip::address_v6(nodeID);
 
 	LOG(INFO) << "extract identity key for ID: " << nodeAddress.to_string();
+	LOG(INFO) << "Begin identity key extraction.";
 	auto idKey = ta_->extractIdentityKey(std::vector<uint8_t>(nodeID.begin(), nodeID.end()));
+	LOG(INFO) << "End identity key extraction.";
 
-	LOG(INFO) << "encode response in CBOR";
+
+	LOG(INFO) << "Begin CBOR encoding";
 	// build cbor message of TA public key, identity and identity key
 	std::vector<uint8_t> clearBuffer;
 
@@ -157,6 +165,7 @@ void DynamicConfigurationServer::generateCredentialsAndSendResponse(const std::a
 		.value = cbor_move(idKey_cbor)
 	});
 
+	LOG(INFO) << "End CBOR encoding";
 #if defined(IOT_DEBUG)
 	cbor_describe(root, stdout);
 	fflush(stdout);
@@ -174,12 +183,14 @@ void DynamicConfigurationServer::generateCredentialsAndSendResponse(const std::a
 	std::array<uint8_t, 16> responseKey;
 	memcpy(responseKey.data(), confResponseKey, 16);
 
+	LOG(INFO) << "Begin NORX encryption";
 	std::vector<uint8_t> ciphertext = NORX::encrypt(
 		std::vector<uint8_t>(), 
 		clearBuffer,
 		std::vector<uint8_t>(),
 		nonce,
 		responseKey);
+	LOG(INFO) << "End NORX encryption";
 
 	LOG(INFO) << "Plain response: " << byteVecToStr(clearBuffer);
 

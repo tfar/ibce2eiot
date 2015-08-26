@@ -26,6 +26,8 @@ THE SOFTWARE.
 
 INITIALIZE_EASYLOGGINGPP
 
+#include <boost/signals2/signal.hpp>
+
 // library headers
 #include <cbor.h>
 extern "C" {
@@ -68,12 +70,15 @@ std::string byteVecToStr(const std::vector<uint8_t>& data) {
 #include "network.h"
 #include "network_interface.h"
 #include "ta_lookup_responder.h"
+#include "ta_piggyback.h"
 
 // other sources
 #include "ibc.cpp"
 #include "network.cpp"
 #include "network_interface.cpp"
 #include "ta_lookup_responder.cpp"
+#include "ta_piggyback.cpp"
+#include "ta_lookup_cache.cpp"
 #include "relic_cbor.c"
 
 extern "C" {
@@ -124,7 +129,8 @@ int main(int argc, char* argv[]) {
 	desc.add_options()
 		("help", "show help message")
 		("interface", po::value<std::string>(), "network interface to bind to")
-		("prefix", po::value<std::string>(), "IPv6 network prefix (48 bit) to use");
+		("prefix", po::value<std::string>(), "IPv6 network prefix (48 bit) to use")
+		("piggyback", po::value<bool>(), "Enable TA piggyback cache");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -143,6 +149,12 @@ int main(int argc, char* argv[]) {
 		LOG(ERROR) << "An interface has to be specified (--interface)";
 		return 1;
 	}
+
+	bool piggybackEnabled = false;
+	if (vm.count("piggyback")) {
+		piggybackEnabled = vm["piggyback"].as<bool>();
+	}
+
 
 	std::string prefixString;
 	if (vm.count("prefix")) {
@@ -183,6 +195,15 @@ int main(int argc, char* argv[]) {
 		
 		// start TA lookup responder (part of this authentication support server)
 		std::shared_ptr<TALookupResponder> talr = std::make_shared<TALookupResponder>(io_service, ni, ta);
+
+		// start TA piggyback service
+		std::shared_ptr<TAPiggyBack> tapb;
+		if (piggybackEnabled) {
+			//tapb = std::make_shared<TAPiggyBack>(io_service, ni->getUsedAddress());
+			tapb = std::make_shared<TAPiggyBack>(talr, ni->getUsedAddress());
+		}
+
+
 		io_service.run();
 	}
 	catch (std::exception& e) {

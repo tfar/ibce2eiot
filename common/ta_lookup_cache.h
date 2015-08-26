@@ -33,12 +33,15 @@ THE SOFTWARE.
 class TALookupCache {
 public:
 	TALookupCache(boost::asio::io_service& ioservice, std::array<uint8_t, 16> address);
+	TALookupCache(std::shared_ptr<TALookupResponder> taLookupResponder);
 
 public:
 	std::tuple<bool, ec> getTAKeyOrRequest(std::array<uint8_t, 16> address);
 	std::tuple<bool, ec> getTAKeyOrRequest(std::array<uint8_t, 14> prefix);
 	size_t cacheSize();
 	void printCache();
+
+	void handleTALookupResponse(boost::asio::ip::address_v6 from, std::vector<uint8_t> data);
 
 private:
 	void handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred);
@@ -53,4 +56,6 @@ private:
 	std::shared_ptr<boost::asio::ip::udp::socket> socket_;
 	boost::asio::ip::udp::endpoint remote_endpoint_;
 	std::array<char, 200> recv_buffer_;
+
+	std::shared_ptr<TALookupResponder> taLookupResponder_;
 };

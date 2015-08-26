@@ -50,6 +50,12 @@ TALookupCache::TALookupCache(boost::asio::io_service& ioservice, std::array<uint
 	socket_->assign(boost::asio::ip::udp::v6(), fd);
 }
 
+TALookupCache::TALookupCache(std::shared_ptr<TALookupResponder> taLookupResponder) {
+	taLookupResponder_ = taLookupResponder;
+	taLookupResponder_->onReplyDataReceived.connect(boost::bind(&TALookupCache::handleTALookupResponse, this, _1, _2));
+}
+
+
 std::tuple<bool, ec> TALookupCache::getTAKeyOrRequest(std::array<uint8_t, 16> address) {
 	std::array<uint8_t, 14> prefix;
 	memcpy(prefix.data(), address.data(), 14);
@@ -93,40 +99,50 @@ void TALookupCache::printCache() {
 	}
 }
 
-void TALookupCache::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
-	LOG(INFO) << "received TA lookup response from " << remote_endpoint_;
-
+void TALookupCache::handleTALookupResponse(boost::asio::ip::address_v6 from, std::vector<uint8_t> data) {
+	LOG(INFO) << "Begin verifying parameters";
 	std::array<uint8_t, 6 + 35> prefixPlusTA;
-	boost::asio::ip::address_v6::bytes_type remoteAddrBytes = remote_endpoint_.address().to_v6().to_bytes();
+	boost::asio::ip::address_v6::bytes_type remoteAddrBytes = from.to_bytes();
 	memcpy(prefixPlusTA.data(), remoteAddrBytes.data(), 6);
-	memcpy(prefixPlusTA.data() + 6, recv_buffer_.data(), 35);
+	memcpy(prefixPlusTA.data() + 6, data.data(), 35);
 
 
 	uint8_t hash[MD_LEN];
 	md_map(hash, (uint8_t*)prefixPlusTA.data(), prefixPlusTA.size());
 	if (util_cmp_const((uint8_t*)(remoteAddrBytes.data()) + 6, hash, 8) == CMP_EQ) {
+		LOG(INFO) << "End verifying parameters";
+
 		LOG(INFO) << "received TA public key is valid";
+		LOG(INFO) << "Begin caching parameters";
 		std::array<uint8_t, 14> prefix;
 		memcpy(prefix.data(), remoteAddrBytes.data(), 14);
 
 		struct cbor_load_result result;
-		cbor_item_t* item = cbor_load((uint8_t*)recv_buffer_.data(), bytes_transferred, &result);
+		cbor_item_t* item = cbor_load((uint8_t*)data.data(), data.size(), &result);
 		ec taPK;
 		relic_cbor2ec_compressed(taPK.p, item);
 		cbor_decref(&item);
-		LOG(INFO) << "Public key for " << remote_endpoint_ << " is " << taPK.p;
+		LOG(INFO) << "Public key for " << from << " is " << taPK.p;
 		if (lookupCache_.find(prefix) != lookupCache_.end()) {
 			LOG(INFO) << "Cached public key already present.";
 		}
 		else {
 			LOG(INFO) << "Pin(Cache) received prefix/public key binding for TA";
 			lookupCache_[prefix] = taPK;
+			LOG(INFO) << "End caching parameters";
 			onTAKeyAvailable(prefix, taPK);
 		}
 	}
 	else {
 		LOG(INFO) << "received TA public key is invalid";
 	}
+	LOG(INFO) << "End verifying parameters";
+}
+
+void TALookupCache::handleRequestReceived(const boost::system::error_code& error, size_t bytes_transferred) {
+	LOG(INFO) << "received TA lookup response from " << remote_endpoint_;
+	std::vector<uint8_t> data = std::vector<uint8_t>(recv_buffer_.data(), recv_buffer_.data() + bytes_transferred);
+	handleTALookupResponse(remote_endpoint_.address().to_v6(), data);
 }
 
 void TALookupCache::startReceive() {
@@ -151,12 +167,16 @@ void TALookupCache::requestTA(std::array<uint8_t, 14> prefix) {
 	boost::asio::ip::address_v6 remoteTALookupService(remoteTAaddress);
 	boost::system::error_code error;
 	LOG(INFO) << "Send TA lookup request to " << remoteTALookupService;
-	socket_->send_to(boost::asio::buffer(buffer, length), boost::asio::ip::udp::endpoint(remoteTALookupService, 4224), 0, error);
+	if (!taLookupResponder_) {
+		socket_->send_to(boost::asio::buffer(buffer, length), boost::asio::ip::udp::endpoint(remoteTALookupService, 4224), 0, error);
+	}
+	else {
+		taLookupResponder_->socket_->send_to(boost::asio::buffer(buffer, length), boost::asio::ip::udp::endpoint(remoteTALookupService, 4224), 0, error);
+	}
 	free(buffer);
 
 	cbor_decref(&root);
-	if (error) {
-		LOG(INFO) << "Error: " << error << " : " << error.message();
+	if (!taLookupResponder_) {
+		startReceive();
 	}
-	startReceive();
 }
