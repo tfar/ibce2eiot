@@ -42,7 +42,7 @@ cmake \
 make -j 6
 cd ..
 
-clang -O3 -c $WD_ROOT/3rdParty/linenoise/linenoise.c -o linenoise.o
+#clang -O3 -c $WD_ROOT/3rdParty/linenoise/linenoise.c -o linenoise.o
 clang++ -O3 -std=c++11 -DPRETTY_PRINTER -Drestrict=__restrict__ -pthread \
 	-Irelic/include \
 	-I$WD_ROOT/3rdParty/relic/include \
@@ -57,7 +57,6 @@ clang++ -O3 -std=c++11 -DPRETTY_PRINTER -Drestrict=__restrict__ -pthread \
 	-DELPP_DISABLE_DEFAULT_CRASH_HANDLING \
 	-DELPP_THREAD_SAFE \
 	../main.cpp \
-	linenoise.o \
 	-lrelic_s \
 	-lcbor \
 	-lboost_system \

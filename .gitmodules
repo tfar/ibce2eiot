@@ -6,8 +6,8 @@
 	url = https://github.com/tfar/relic.git
 [submodule "3rdParty/libcbor"]
 	path = 3rdParty/libcbor
-	url = https://github.com/PJK/libcbor.git
-	branch = master
+	url = https://github.com/tfar/libcbor.git
+	branch = sandbox/2016/03/macosx-compilation-fix
 [submodule "3rdParty/easyloggingpp"]
 	path = 3rdParty/easyloggingpp
 	url = https://github.com/easylogging/easyloggingpp.git

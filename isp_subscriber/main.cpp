@@ -26,6 +26,9 @@ THE SOFTWARE.
 
 INITIALIZE_EASYLOGGINGPP
 
+#include <boost/program_options.hpp>
+#include <boost/thread.hpp>
+
 // library headers
 #include <cbor.h>
 extern "C" {
@@ -48,8 +51,6 @@ inline MAKE_LOGGABLE(ec_t, p, os) {
 
 #include <cstdio>
 #include <fstream>
-#include <boost/program_options.hpp>
-#include <boost/thread.hpp>
 
 #include <unistd.h>
 #include <signal.h>

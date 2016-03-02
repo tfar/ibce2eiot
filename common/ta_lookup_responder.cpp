@@ -24,9 +24,6 @@ THE SOFTWARE.
 
 #include "ta_lookup_responder.h"
 
-#if !defined(__linux__)
-#include "linenoise.h"
-#endif
 
 TALookupResponder::TALookupResponder(boost::asio::io_service& ioservice, std::shared_ptr<NetworkInterface> networkInterface, std::shared_ptr<TA> ta) : networkInterface_(networkInterface), ta_(ta) {
 	sleep(5);
